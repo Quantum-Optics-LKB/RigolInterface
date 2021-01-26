@@ -2,6 +2,7 @@ import pyvisa as visa
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
+import os
 
 
 class USBScope:
@@ -24,9 +25,16 @@ class USBScope:
             self.scope = self.rm.open_resource(usb[answer])
         else:
             self.scope = self.rm.open_resource(usb[0])
-        self.scope.write(":STOP")
+        # Get one waveform to retrieve metrics
+        self.scope.write(":WAV:STAR 1")
+        self.scope.write(":WAV:STOP 250000")
         # Query the sample rate
         self.sample_rate = self.scope.query_ascii_values(':ACQ:SRAT?')[0]
+        self.yorigin = self.scope.query_ascii_values(":WAV:YOR?")[0]
+        self.yref = self.scope.query_ascii_values(":WAV:YREF?")[0]
+        self.yres = self.scope.query_ascii_values(":WAV:YINC?")[0]
+        self.xref = self.scope.query_ascii_values(":WAV:XREF?")[0]
+        self.xres = self.scope.query_ascii_values(":WAV:XINC?")[0]
 
     def get_waveform(self, channels: list = [1], plot: bool = False):
         """
@@ -134,10 +142,18 @@ class USBScope:
         return Data, Time
 
     def _set_xref(self, ref: float):
-        self.scope.write_ascii_values(":WAV:XREF", ref)
+        try:
+            self.scope.write_ascii_values(":WAV:XREF", ref)
+        except (ValueError or TypeError or AttributeError):
+            print("Improper value for XREF !")
+        self.xref = self.scope.query_ascii_values(":WAV:XREF?")[0]
 
     def _set_yref(self, ref: float):
-        self.scope.write_ascii_values(":WAV:YREF", ref)
+        try:
+            self.scope.write_ascii_values(":WAV:YREF", ref)
+        except (ValueError or TypeError or AttributeError):
+            print("Improper value for YREF !")
+        self.xref = self.scope.query_ascii_values(":WAV:YREF?")[0]
 
     def _set_yres(self, res: float):
         self.scope.write_ascii_values(":WAV:YINC", res)
@@ -148,8 +164,27 @@ class USBScope:
     def measurement(self, channels: list = [1],
                     res: list = None):
         if list is not(None) and len(list) == 2:
-            self.hres = self._set_hres(res[0])
-            self.vres = self._set_vres(res[1])
+            self.xres = self._set_xres(res[0])
+            self.yres = self._set_yres(res[1])
         Data, Time = self.get_waveform(channels=channels)
+
+    def get_screenshot(self, filename: str = None, format: str = 'png'):
+        """
+        Recovers a screenshot of the screen and returns the image
+        :param filename: Location where the image will be saved
+        :param format: Image format in ['jpg', 'png', 'tiff','bmp8', 'bmp24']
+        """
+        assert format in ('jpeg', 'png', 'bmp8', 'bmp24', 'tiff')
+        raw_img = self.scope.ask(':disp:data? on,off,%s' % format, 614400)
+        img = np.asarray(raw_img).reshape((600, 1024))
+        if filename:
+            try:
+                os.remove(filename)
+            except OSError:
+                pass
+            with open(filename, 'wb') as fs:
+                fs.write(raw_img)
+        return img
+
     def close(self):
         self.scope.close()
