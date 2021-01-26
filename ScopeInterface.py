@@ -134,17 +134,16 @@ class USBScope:
         return Data, Time
 
     def _set_xref(self, ref: float):
-        # self.scope.write_ascii_values(":WAV:XREF")
-        pass
+        self.scope.write_ascii_values(":WAV:XREF", ref)
 
     def _set_yref(self, ref: float):
-        pass
+        self.scope.write_ascii_values(":WAV:YREF", ref)
 
-    def _set_vres(self, res: float):
-        pass
+    def _set_yres(self, res: float):
+        self.scope.write_ascii_values(":WAV:YINC", res)
 
-    def _set_hres(self, res: float):
-        pass
+    def _set_xres(self, res: float):
+        self.scope.write_ascii_values(":WAV:XINC", res)
 
     def measurement(self, channels: list = [1],
                     res: list = None):
