@@ -1,33 +1,51 @@
-import pyvisa as visa
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Jan 26 10:47:25 2021
+
+@author: Tangui ALADJIDI
+"""
+
 import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import os
+if sys.platform.startswith('linux'):
+    import pyvisa as visa
+elif sys.platform.startswith('win32'):
+    import visa
 
+plt.ioff()
 
 class USBScope:
     def __init__(self):
         """
         Scans for USB devices
         """
-        self.rm = visa.ResourceManager('@py')
+        if sys.platform.startswith('linux'):
+            self.rm = visa.ResourceManager('@py')
+        elif sys.platform.startswith('win32'):
+            self.rm = visa.ResourceManager()
         instruments = self.rm.list_resources()
         usb = list(filter(lambda x: 'USB' in x, instruments))
         if len(usb) == 0:
             print('Could not find any device !')
+            print(f"\n Instruments found : {instruments}")
             sys.exit(-1)
         elif len(usb) > 1:
             print('More than one USB instrument connected' +
                   ' please choose instrument')
             for counter, dev in enumerate(usb):
-                print(f"{dev} : {counter}")
+                instr = self.rm.open_resource(dev)
+                print(f"{dev} : {counter} ("+
+                      f"{instr.manufacturer_name}, {instr.model_name})")
+                instr.close()
             answer = input(f"\n Choice (number between 0 and {len(usb)-1}) ? ")
+            answer = int(answer)
             self.scope = self.rm.open_resource(usb[answer])
         else:
             self.scope = self.rm.open_resource(usb[0])
         # Get one waveform to retrieve metrics
-        self.scope.write(":WAV:STAR 1")
-        self.scope.write(":WAV:STOP 250000")
+        self.scope.write(":STOP")
         # Query the sample rate
         self.sample_rate = self.scope.query_ascii_values(':ACQ:SRAT?')[0]
         self.yorigin = self.scope.query_ascii_values(":WAV:YOR?")[0]
@@ -131,17 +149,28 @@ class USBScope:
                     tUnit = "S"
                 # Graph data with pyplot.
                 ax.plot(time, data)
-                ax.ylabel("Voltage (V)")
-                ax.xlabel("Time (" + tUnit + ")")
-                ax.xlim(time[0], time[-1])
+                ax.set_ylabel("Voltage (V)")
+                ax.set_xlabel("Time (" + tUnit + ")")
+                ax.set_xlim(time[0], time[-1])
         if plot:
-            ax.legend()
+            ax.legend(leg)
             plt.show()
         Data = np.asarray(Data)
         Time = np.asarray(Time)
         return Data, Time
 
     def _set_xref(self, ref: float):
+        """
+        Sets the x reference
+        :param ref: Reference point 
+        :type ref: float
+        :return: None
+        :rtype: None
+
+        """
+        
+        
+        
         try:
             self.scope.write_ascii_values(":WAV:XREF", ref)
         except (ValueError or TypeError or AttributeError):
@@ -175,7 +204,10 @@ class USBScope:
         :param format: Image format in ['jpg', 'png', 'tiff','bmp8', 'bmp24']
         """
         assert format in ('jpeg', 'png', 'bmp8', 'bmp24', 'tiff')
-        raw_img = self.scope.ask(':disp:data? on,off,%s' % format, 614400)
+        self.scope.timeout = 60000
+        self.scope.write(':disp:data? on,off,%s' % format)
+        raw_img = self.scope.read_raw(614400)
+        self.scope.timeout = 25000
         img = np.asarray(raw_img).reshape((600, 1024))
         if filename:
             try:
@@ -187,4 +219,5 @@ class USBScope:
         return img
 
     def close(self):
+        self.scope.write(":RUN")
         self.scope.close()
