@@ -16,6 +16,7 @@ elif sys.platform.startswith('win32'):
 
 plt.ioff()
 
+
 class USBScope:
     def __init__(self):
         """
@@ -36,23 +37,17 @@ class USBScope:
                   ' please choose instrument')
             for counter, dev in enumerate(usb):
                 instr = self.rm.open_resource(dev)
-                print(f"{dev} : {counter} ("+
-                      f"{instr.manufacturer_name}, {instr.model_name})")
+                print(f"{dev} : {counter} (" +
+                      f"{instr.query('*IDN')})")
                 instr.close()
             answer = input(f"\n Choice (number between 0 and {len(usb)-1}) ? ")
             answer = int(answer)
             self.scope = self.rm.open_resource(usb[answer])
         else:
             self.scope = self.rm.open_resource(usb[0])
+            print(f"{self.scope.manufacturer_name}, {self.scope.model_name}")
         # Get one waveform to retrieve metrics
         self.scope.write(":STOP")
-        # Query the sample rate
-        self.sample_rate = self.scope.query_ascii_values(':ACQ:SRAT?')[0]
-        self.yorigin = self.scope.query_ascii_values(":WAV:YOR?")[0]
-        self.yref = self.scope.query_ascii_values(":WAV:YREF?")[0]
-        self.yres = self.scope.query_ascii_values(":WAV:YINC?")[0]
-        self.xref = self.scope.query_ascii_values(":WAV:XREF?")[0]
-        self.xres = self.scope.query_ascii_values(":WAV:XINC?")[0]
 
     def get_waveform(self, channels: list = [1], plot: bool = False):
         """
@@ -159,42 +154,40 @@ class USBScope:
         Time = np.asarray(Time)
         return Data, Time
 
-    def _set_xref(self, ref: float):
+    def set_xref(self, ref: float):
         """
         Sets the x reference
-        :param ref: Reference point 
+        :param ref: Reference point
         :type ref: float
         :return: None
         :rtype: None
 
         """
-        
-        
-        
+
         try:
             self.scope.write_ascii_values(":WAV:XREF", ref)
         except (ValueError or TypeError or AttributeError):
             print("Improper value for XREF !")
         self.xref = self.scope.query_ascii_values(":WAV:XREF?")[0]
 
-    def _set_yref(self, ref: float):
+    def set_yref(self, ref: float, channel: list = [1]):
         try:
             self.scope.write_ascii_values(":WAV:YREF", ref)
         except (ValueError or TypeError or AttributeError):
             print("Improper value for YREF !")
         self.xref = self.scope.query_ascii_values(":WAV:YREF?")[0]
 
-    def _set_yres(self, res: float):
+    def set_yres(self, res: float):
         self.scope.write_ascii_values(":WAV:YINC", res)
 
-    def _set_xres(self, res: float):
+    def set_xres(self, res: float):
         self.scope.write_ascii_values(":WAV:XINC", res)
 
     def measurement(self, channels: list = [1],
                     res: list = None):
         if list is not(None) and len(list) == 2:
-            self.xres = self._set_xres(res[0])
-            self.yres = self._set_yres(res[1])
+            self.xres = self.set_xres(res[0])
+            self.yres = self.set_yres(res[1])
         Data, Time = self.get_waveform(channels=channels)
 
     def get_screenshot(self, filename: str = None, format: str = 'png'):
@@ -206,7 +199,7 @@ class USBScope:
         assert format in ('jpeg', 'png', 'bmp8', 'bmp24', 'tiff')
         self.scope.timeout = 60000
         self.scope.write(':disp:data? on,off,%s' % format)
-        raw_img = self.scope.read_raw(614400)
+        raw_img = self.scope.read()
         self.scope.timeout = 25000
         img = np.asarray(raw_img).reshape((600, 1024))
         if filename:
@@ -221,3 +214,100 @@ class USBScope:
     def close(self):
         self.scope.write(":RUN")
         self.scope.close()
+
+
+class USBSpectrumAnalyzer:
+
+    def __init__(self, addr: str = None):
+        """Instantiates a SpecAnalyzer. By default, search through the
+        available USB devices and ask the user to select the desired device.
+
+        :param str addr: Physical address of SpecAnalyzer
+        :return: Instance of class USBSpectrumAnalyzer
+        :rtype: USBSpectrumAnalyzer
+
+        """
+
+        if sys.platform.startswith('linux'):
+            self.rm = visa.ResourceManager('@py')
+        elif sys.platform.startswith('win32'):
+            self.rm = visa.ResourceManager()
+        if addr is None:
+            instruments = self.rm.list_resources()
+            usb = list(filter(lambda x: 'USB' in x, instruments))
+            if len(usb) == 0:
+                print('Could not find any device !')
+                print(f"\n Instruments found : {instruments}")
+                sys.exit(-1)
+            elif len(usb) > 1:
+                print('More than one USB instrument connected' +
+                      ' please choose instrument')
+                for counter, dev in enumerate(usb):
+                    instr = self.rm.open_resource(dev)
+                    print(f"{dev} : {counter} (" +
+                          f"{instr.query('*IDN?')})")
+                    instr.close()
+                answer = input(f"\n Choice (number between 0 and {len(usb)-1}) ? ")
+                answer = int(answer)
+                self.sa = self.rm.open_resource(usb[answer])
+                print(f"Connected to {self.sa.query('*IDN?')}")
+            else:
+                self.sa = self.rm.open_resource(usb[0])
+                print(f"Connected to {self.sa.query('*IDN?')}")
+        else:
+            try:
+                self.sa = self.rm.open_resource(addr)
+                print(f"Connected to {self.sa.query('*IDN?')}")
+            except:
+                print("ERROR : Could not connect to specified device")
+        self.sa.write(":STOP")
+
+    def zero_span(self, rbw: float = 100e3, vbw: float = 30,
+                  swt: float = 50e-3, trig: bool = False):
+        """Zero span measurement.
+
+        :param float rbw: Resolution bandwidth
+        :param float vbw: Video bandwidth
+        :param float swt: Total measurement time
+        :param bool trig: External trigger
+        :return: data, time for data and time
+        :rtype: np.ndarray
+
+        """
+
+        self.sa.write(':FREQuency:SPAN 0')
+        self.sa.write(f':SWEep:TIME {swt}')  # in s.
+        self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOG')
+        self.sa.write(':POWer:ASCale')
+        if trig:
+            self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
+            self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
+
+        self.sa.write(':CONFigure:ACPOWer')
+        self.sa.write(':TPOWer:LLIMit 0')
+        self.sa.write(f':TPOWer:RLIMit {swt}')
+        self.sa.write(':FORMat:TRACe:DATA ASCii')
+
+        self.sa.write(f':BANDwidth:RESolution {rbw}')
+        self.sa.write(f':BANDwidth:VIDeo {vbw}')
+
+        data = self.query_data()
+        sweeptime = float(self.sa.query(':SWEep:TIME?'))
+        time = np.linspace(0, sweeptime, len(data))
+        return data, time
+
+    def query_data(self):
+        """Lower level function to grab the data from the SpecAnalyzer
+
+        :return: data
+        :rtype: list
+
+        """
+        rawdata = self.sa.query(':TRACe? TRACE1')
+        data = rawdata.split(', ')[1:]
+        data = [float(i) for i in data]
+        self.sa.write(':TRACe:AVERage:CLEar')
+        return data
+
+    def close(self):
+        self.sa.close()

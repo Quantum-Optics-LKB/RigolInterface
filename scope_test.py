@@ -12,3 +12,5 @@ import os
 from ScopeInterface import USBScope
 
 rigol = USBScope()
+rigol.get_waveform(channels=[1, 2, 3, 4], plot=True)
+rigol.close()
