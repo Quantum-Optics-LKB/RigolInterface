@@ -18,7 +18,7 @@ plt.ioff()
 
 
 class USBScope:
-    def __init__(self):
+    def __init__(self, addr: str = None):
         """
         Scans for USB devices
         """
@@ -26,26 +26,35 @@ class USBScope:
             self.rm = visa.ResourceManager('@py')
         elif sys.platform.startswith('win32'):
             self.rm = visa.ResourceManager()
-        instruments = self.rm.list_resources()
-        usb = list(filter(lambda x: 'USB' in x, instruments))
-        if len(usb) == 0:
-            print('Could not find any device !')
-            print(f"\n Instruments found : {instruments}")
-            sys.exit(-1)
-        elif len(usb) > 1:
-            print('More than one USB instrument connected' +
-                  ' please choose instrument')
-            for counter, dev in enumerate(usb):
-                instr = self.rm.open_resource(dev)
-                print(f"{dev} : {counter} (" +
-                      f"{instr.query('*IDN')})")
-                instr.close()
-            answer = input(f"\n Choice (number between 0 and {len(usb)-1}) ? ")
-            answer = int(answer)
-            self.scope = self.rm.open_resource(usb[answer])
+        if addr is None:
+            instruments = self.rm.list_resources()
+            usb = list(filter(lambda x: 'USB' in x, instruments))
+            if len(usb) == 0:
+                print('Could not find any device !')
+                print(f"\n Instruments found : {instruments}")
+                sys.exit(-1)
+            elif len(usb) > 1:
+                print('More than one USB instrument connected' +
+                      ' please choose instrument')
+                for counter, dev in enumerate(usb):
+                    instr = self.rm.open_resource(dev)
+                    print(f"{dev} : {counter} (" +
+                          f"{instr.query('*IDN')})")
+                    instr.close()
+                answer = input(f"\n Choice (number between 0 and {len(usb)-1}) ? ")
+                answer = int(answer)
+                self.scope = self.rm.open_resource(usb[answer])
+            else:
+                self.scope = self.rm.open_resource(usb[0])
+                print(f"{self.scope.manufacturer_name}" +
+                      f", {self.scope.model_name}")
         else:
-            self.scope = self.rm.open_resource(usb[0])
-            print(f"{self.scope.manufacturer_name}, {self.scope.model_name}")
+            try:
+                self.scope = self.rm.open_resource(addr)
+                print(f"Connected to {self.scope.query('*IDN?')}")
+            except:
+                print("ERROR : Could not connect to specified device")
+
         # Get one waveform to retrieve metrics
         self.scope.write(":STOP")
 
