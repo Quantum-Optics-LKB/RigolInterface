@@ -30,7 +30,7 @@ class USBScope:
             instruments = self.rm.list_resources()
             usb = list(filter(lambda x: 'USB' in x, instruments))
             if len(usb) == 0:
-                print('Could not find any device !')
+                print('Could not find any USB device !')
                 print(f"\n Instruments found : {instruments}")
                 sys.exit(-1)
             elif len(usb) > 1:
@@ -320,3 +320,9 @@ class USBSpectrumAnalyzer:
 
     def close(self):
         self.sa.close()
+
+
+class USBAfg:
+    def __init__(self):
+        pass
+        # TODO
