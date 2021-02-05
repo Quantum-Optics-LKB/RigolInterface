@@ -404,13 +404,13 @@ class USBArbitraryFG:
         """
         self.afg.write(f"OUTPut{output} OFF")
 
-    def sine(self, output: int = 1, freq: float = 100.0, amp: float = 2.0,
+    def sine(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
              offset: float = 0.0, phase: float = 0.0):
         """
         Sets a sine wave on specified output
         :param int output: Output channel
         :param float freq: Frequency of the signa in Hz
-        :param float amp: Amplitude of the wave in Volts
+        :param float ampl: Amplitude of the wave in Volts
         :param float offset: Voltage offset
         :param float phase: Signal phase in degree
         :return: None
@@ -418,9 +418,9 @@ class USBArbitraryFG:
         if output not in [1, 2]:
             print("ERROR : Invalid output specified")
             return None
-        self.afg.write(f":SOURce{output}:APPLy:SINusoid {freq}, {amp}, " +
+        self.afg.write(f":SOURce{output}:APPLy:SINusoid {freq}, {ampl}, " +
                        f"{offset}, {phase}")
-        pass
+        self.turn_on(output)
 
     def square(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
                offset: float = 0.0, phase: float = 0.0, duty: float = 50.0):
@@ -434,7 +434,13 @@ class USBArbitraryFG:
         :param float duty: Duty cycle in percent
         :return: None
         """
-        pass
+        if output not in [1, 2]:
+            print("ERROR : Invalid output specified")
+            return None
+        self.afg.write(f":SOURce{output}:APPLy:SQUare {freq}, {ampl}, " +
+                       f"{offset}, {phase}")
+        self.afg.write(f":SOURce{output}:FUNCtion:SQUare:DCYCle {duty}")
+        self.turn_on(output)
 
     def ramp(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
              offset: float = 0.0, phase: float = 0.0, symm: float = 50.0):
@@ -448,7 +454,13 @@ class USBArbitraryFG:
         :param float symm: Symmetry factor in percent (equivalent to duty)
         :return: None
         """
-        pass
+        if output not in [1, 2]:
+            print("ERROR : Invalid output specified")
+            return None
+        self.afg.write(f":SOURce{output}:APPLy:RAMP {freq}, {ampl}, " +
+                       f"{offset}, {phase}")
+        self.afg.write(f":SOURce{output}:FUNCtion:RAMP:SYMMetry {symm}")
+        self.turn_on(output)
 
     def pulse(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
               offset: float = 0.0, phase: float = 0.0, duty: float = 50.0,
@@ -465,7 +477,14 @@ class USBArbitraryFG:
         :param float fall: Fall time in seconds
         :return: None
         """
-        pass
+        if output not in [1, 2]:
+            print("ERROR : Invalid output specified")
+            return None
+        self.afg.write(f":SOURce{output}:APPLy:PULSe {freq}, {ampl}, " +
+                       f"{offset}, {phase}")
+        self.afg.write(f":SOURce{output}:FUNCtion:PULSe:DCYCLe {duty}")
+        self.afg.write(f":SOURce{output}:FUNCtion:TRANsition:LEADing {rise}")
+        self.afg.write(f":SOURce{output}:FUNCtion:TRANsition:TRAiling {fall}")
 
     def noise(self, output: int = 1, ampl: float = 5.0):
         """
