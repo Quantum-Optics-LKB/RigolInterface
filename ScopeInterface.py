@@ -30,7 +30,7 @@ class USBScope:
             instruments = self.rm.list_resources()
             usb = list(filter(lambda x: 'USB' in x, instruments))
             if len(usb) == 0:
-                print('Could not find any USB device !')
+                print('Could not find any device !')
                 print(f"\n Instruments found : {instruments}")
                 sys.exit(-1)
             elif len(usb) > 1:
@@ -271,10 +271,10 @@ class USBSpectrumAnalyzer:
                 print("ERROR : Could not connect to specified device")
         self.sa.write(":STOP")
 
-    def zero_span(self, rbw: float = 100e3, vbw: float = 30,
-                  swt: float = 50e-3, trig: bool = False):
+    def zero_span(self, center: float = 1e6, rbw: float = 100e3,
+                  vbw: float = 30, swt: float = 50e-3, trig: bool = False):
         """Zero span measurement.
-
+        :param float center: Center frequency in Hz
         :param float rbw: Resolution bandwidth
         :param float vbw: Video bandwidth
         :param float swt: Total measurement time
@@ -285,9 +285,10 @@ class USBSpectrumAnalyzer:
         """
 
         self.sa.write(':FREQuency:SPAN 0')
+        self.sa.write(f':FREQuency:CENTer {center}')
         self.sa.write(f':SWEep:TIME {swt}')  # in s.
         self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOG')
-        self.sa.write(':POWer:ASCale')
+        # self.sa.write(':POWer:ASCale')
         if trig:
             self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
             self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
@@ -312,17 +313,13 @@ class USBSpectrumAnalyzer:
         :rtype: list
 
         """
+        self.sa.write(':INITiate:PAUSe')
         rawdata = self.sa.query(':TRACe? TRACE1')
         data = rawdata.split(', ')[1:]
         data = [float(i) for i in data]
         self.sa.write(':TRACe:AVERage:CLEar')
-        return data
+        self.sa.write(':INITiate:RESume')
+        return np.asarray(data)
 
     def close(self):
         self.sa.close()
-
-
-class USBAfg:
-    def __init__(self):
-        pass
-        # TODO
