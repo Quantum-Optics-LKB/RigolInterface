@@ -411,7 +411,7 @@ class USBArbitraryFG:
         :param int output: Output channel
         :param float freq: Frequency of the signa in Hz
         :param float ampl: Amplitude of the wave in Volts
-        :param float offset: Voltage offset
+        :param float offset: Voltage offset in Volts
         :param float phase: Signal phase in degree
         :return: None
         """
@@ -429,7 +429,7 @@ class USBArbitraryFG:
         :param int output: Output channel
         :param float freq: Frequency of the signa in Hz
         :param float ampl: Amplitude of the wave in Volts
-        :param float offset: Voltage offset
+        :param float offset: Voltage offset in Volts
         :param float phase: Signal phase in degree
         :param float duty: Duty cycle in percent
         :return: None
@@ -449,7 +449,7 @@ class USBArbitraryFG:
         :param int output: Output channel
         :param float freq: Frequency of the signa in Hz
         :param float ampl: Amplitude of the wave in Volts
-        :param float offset: Voltage offset
+        :param float offset: Voltage offset in Volts
         :param float phase: Signal phase in degree
         :param float symm: Symmetry factor in percent (equivalent to duty)
         :return: None
@@ -470,7 +470,7 @@ class USBArbitraryFG:
         :param int output: Output channel
         :param float freq: Frequency of the signa in Hz
         :param float ampl: Amplitude of the wave in Volts
-        :param float offset: Voltage offset
+        :param float offset: Voltage offset in Volts
         :param float phase: Signal phase in degree
         :param float duty: Duty cycle in percent
         :param float rise: Rise time in seconds
@@ -485,19 +485,22 @@ class USBArbitraryFG:
         self.afg.write(f":SOURce{output}:FUNCtion:PULSe:DCYCLe {duty}")
         self.afg.write(f":SOURce{output}:FUNCtion:TRANsition:LEADing {rise}")
         self.afg.write(f":SOURce{output}:FUNCtion:TRANsition:TRAiling {fall}")
+        self.turn_on(output)
 
-    def noise(self, output: int = 1, ampl: float = 5.0):
+    def noise(self, output: int = 1, ampl: float = 5.0, offset: float = 0.0):
         """
         Sends noise on specified output
         :param int output: Output channel
         :param float ampl: Amplitude in Volts
+        :param float offset: Voltage offset in Volts
         :return: None
         """
-        pass
+        self.afg.write(f":SOURce{output}:APPLy:NOISe {ampl}, {offset}")
+        self.turn_on(output)
 
     def arbitrary(self, output: int = 1, freq: float = 100, ampl: float = 5.0,
                   offset: float = 0.0, phase: float = 0.0,
-                  function: str = 'sinc'):
+                  function: str = 'SINC'):
         """
         Arbitrary function signal
         :param int output: Output channel
@@ -505,13 +508,49 @@ class USBArbitraryFG:
         :param float ampl: Amplitude of the wave in Volts
         :param float offset: Voltage offset
         :param float phase: Signal phase in degree
-        :param str function: Function type ('sinc', 'lorentz', 'log',
-            'gauss' ...)
+        :param str function: Function type
         :return: Description of returned object.
         :rtype: type
 
         """
-        pass
+        # List of all possible functions
+        funcnames = ["KAISER", "ROUNDPM", "SINC", "NEGRAMP", "ATTALT",
+                     "AMPALT", "STAIRDN", "STAIRUP", "STAIRUD", "CPULSE",
+                     "NPULSE", "TRAPEZIA", "ROUNDHALF", "ABSSINE",
+                     "ABSSINEHALF", "SINETRA", "SINEVER", "EXPRISE", "EXPFALL",
+                     "TAN", "COT", "SQRT", "X2DATA", "GAUSS", "HAVERSINE",
+                     "LORENTZ", "DIRICHLET", "GAUSSPULSE", "AIRY", "CARDIAC",
+                     "QUAKE", "GAMMA", "VOICE", "TV", "COMBIN", "BANDLIMITED",
+                     "STEPRESP", "BUTTERWORTH", "CHEBYSHEV1", "CHEBYSHEV2",
+                     "BOXCAR", "BARLETT", "TRIANG", "BLACKMAN", "HAMMING",
+                     "HANNING", "DUALTONE", "ACOS", "ACOSH", "ACOTCON",
+                     "ACOTPRO", "ACOTHCON", "ACOTHPRO", "ACSCCON", "ACSCPRO",
+                     "ACSCHCON", "ACSCHPRO", "ASECCON", "ASECPRO", "ASECH",
+                     "ASIN", "ASINH", "ATAN", "ATANH", "BESSELJ", "BESSELY",
+                     "CAUCHY", "COSH", "COSINT", "COTHCON", "COTHPRO",
+                     "CSCCON", "CSCPRO", "CSCHCON", "CSCHPRO", "CUBIC,", "ERF",
+                     "ERFC", "ERFCINV", "ERFINV", "LAGUERRE", "LAPLACE",
+                     "LEGEND", "LOG", "LOGNORMAL", "MAXWELL", "RAYLEIGH",
+                     "RECIPCON", "RECIPPRO", "SECCON", "SECPRO", "SECH",
+                     "SINH", "SININT", "TANH", "VERSIERA", "WEIBULL",
+                     "BARTHANN", "BLACKMANH", "BOHMANWIN", "CHEBWIN",
+                     "FLATTOPWIN", "NUTTALLWIN", "PARZENWIN", "TAYLORWIN",
+                     "TUKEYWIN", "CWPUSLE", "LFPULSE", "LFMPULSE", "EOG",
+                     "EEG", "EMG", "PULSILOGRAM", "TENS1", "TENS2", "TENS3",
+                     "SURGE", "DAMPEDOSC", "SWINGOSC", "RADAR", "THREEAM",
+                     "THREEFM", "THREEPM", "THREEPWM", "THREEPFM", "RESSPEED",
+                     "MCNOSIE", "PAHCUR", "RIPPLE", "ISO76372TP1",
+                     "ISO76372TP2A", "ISO76372TP2B", "ISO76372TP3A",
+                     "ISO76372TP3B", "ISO76372TP4", "ISO76372TP5A",
+                     "ISO76372TP5B", "ISO167502SP", "ISO167502VR", "SCR",
+                     "IGNITION", "NIMHDISCHARGE", "GATEVIBR", "PPULSE"]
+        if function not in funcnames:
+            print("ERROR : Unknwown function specified")
+            pass
+        self.afg.write(f":SOURce{output}:APPLy:USER {freq}, {ampl}, " +
+                       f"{offset}, {phase}")
+        self.afg.write(f":SOURce{output}:FUNCtion {function}")
+        self.turn_on(output)
 
     def close(self):
         self.afg.close()
