@@ -41,7 +41,8 @@ class USBScope:
                     print(f"{dev} : {counter} (" +
                           f"{instr.query('*IDN')})")
                     instr.close()
-                answer = input(f"\n Choice (number between 0 and {len(usb)-1}) ? ")
+                answer = input("\n Choice (number between 0 and " +
+                               f"{len(usb)-1}) ? ")
                 answer = int(answer)
                 self.scope = self.rm.open_resource(usb[answer])
             else:
@@ -52,7 +53,7 @@ class USBScope:
             try:
                 self.scope = self.rm.open_resource(addr)
                 print(f"Connected to {self.scope.query('*IDN?')}")
-            except:
+            except Exception:
                 print("ERROR : Could not connect to specified device")
 
         # Get one waveform to retrieve metrics
@@ -100,39 +101,31 @@ class USBScope:
             # Set waveform read stop to 250000.
             self.scope.write(":WAV:STOP 250000")
 
-            # Read data from the scope, excluding the first 9 bytes (TMC header).
-            rawdata = self.scope.query_binary_values(":WAV:DATA?", datatype='B')
+            # Read data from the scope, excluding the first 9 bytes
+            # (TMC header).
+            rawdata = self.scope.query_binary_values(":WAV:DATA?",
+                                                     datatype='B')
 
             # Check if memory depth is bigger than the first data extraction.
             if (memory_depth > 250000):
                 loopcount = 1
-                # Find the maximum number of loops required to loop through all memory.
+                # Find the maximum number of loops required to loop through all
+                # memory.
                 loopmax = np.ceil(memory_depth/250000)
                 while (loopcount < loopmax):
-                    # Calculate the next start of the waveform in the internal memory.
+                    # Calculate the next start of the waveform in the internal
+                    # memory.
                     start = (loopcount*250000)+1
                     self.scope.write(":WAV:STAR {0}".format(start))
-                    # Calculate the next stop of the waveform in the internal memory
+                    # Calculate the next stop of the waveform in the internal
+                    # memory
                     stop = (loopcount+1)*250000
                     print(stop)
                     self.scope.write(":WAV:STOP {0}".format(stop))
                     # Extent the rawdata variables with the new values.
                     rawdata.extend(self.scope.query_binary_values(":WAV:DATA?",
-                                                                  datatype='B'))
+                                   datatype='B'))
                     loopcount = loopcount+1
-            # This is the part that extracts the measurements from the scope.
-            # Measure on channel 1.
-            # self.scope.write(":MEAS:SOUR CHAN1")
-            # Grab VMAX
-            # v_max = self.scope.query_ascii_values(":MEAS:ITEM? VMAX")
-            # v_min = self.scope.query_ascii_values(":MEAS:ITEM? VMIN")
-            # v_pp = self.scope.query_ascii_values(":MEAS:ITEM? VPP")
-            # v_rms = self.scope.query_ascii_values(":MEAS:ITEM? VRMS")
-            # v_avg = self.scope.query_ascii_values(":MEAS:ITEM? VAVG")
-            # freq = self.scope.query_ascii_values(":MEAS:ITEM? FREQ")
-
-            # This is the part that handles all the data and presents it nicely.
-            # Convert byte to actual voltage using Rigol data
             data = (np.asarray(rawdata) - YORigin - YREFerence) * YINCrement
             Data.append(data)
             # Calcualte data size for generating time axis
@@ -256,7 +249,8 @@ class USBSpectrumAnalyzer:
                     print(f"{dev} : {counter} (" +
                           f"{instr.query('*IDN?')})")
                     instr.close()
-                answer = input(f"\n Choice (number between 0 and {len(usb)-1}) ? ")
+                answer = input("\n Choice (number between 0 and " +
+                               f"{len(usb)-1}) ? ")
                 answer = int(answer)
                 self.sa = self.rm.open_resource(usb[answer])
                 print(f"Connected to {self.sa.query('*IDN?')}")
@@ -267,7 +261,7 @@ class USBSpectrumAnalyzer:
             try:
                 self.sa = self.rm.open_resource(addr)
                 print(f"Connected to {self.sa.query('*IDN?')}")
-            except:
+            except Exception:
                 print("ERROR : Could not connect to specified device")
         self.sa.write(":STOP")
 
@@ -323,3 +317,182 @@ class USBSpectrumAnalyzer:
 
     def close(self):
         self.sa.close()
+
+
+class USBArbitraryFG:
+
+    def __init__(self, addr: str = None):
+        """Instantiates a SpecAnalyzer. By default, search through the
+        available USB devices and ask the user to select the desired device.
+
+        :param str addr: Physical address of SpecAnalyzer
+        :return: Instance of class USBSpectrumAnalyzer
+        :rtype: USBSpectrumAnalyzer
+
+        """
+
+        if sys.platform.startswith('linux'):
+            self.rm = visa.ResourceManager('@py')
+        elif sys.platform.startswith('win32'):
+            self.rm = visa.ResourceManager()
+        if addr is None:
+            instruments = self.rm.list_resources()
+            usb = list(filter(lambda x: 'USB' in x, instruments))
+            if len(usb) == 0:
+                print('Could not find any device !')
+                print(f"\n Instruments found : {instruments}")
+                sys.exit(-1)
+            elif len(usb) > 1:
+                print('More than one USB instrument connected' +
+                      ' please choose instrument')
+                for counter, dev in enumerate(usb):
+                    instr = self.rm.open_resource(dev)
+                    print(f"{dev} : {counter} (" +
+                          f"{instr.query('*IDN?')})")
+                    instr.close()
+                answer = input("\n Choice (number between 0 and " +
+                               f"{len(usb)-1}) ? ")
+                answer = int(answer)
+                self.afg = self.rm.open_resource(usb[answer])
+                print(f"Connected to {self.afg.query('*IDN?')}")
+            else:
+                self.afg = self.rm.open_resource(usb[0])
+                print(f"Connected to {self.afg.query('*IDN?')}")
+        else:
+            try:
+                self.afg = self.rm.open_resource(addr)
+                print(f"Connected to {self.afg.query('*IDN?')}")
+            except Exception:
+                print("ERROR : Could not connect to specified device")
+        self.afg.write(":STOP")
+
+    def get_waveform(self, output: int = 1) -> [bool, str, float, float, float,
+                                                float]:
+        """
+        Gets the waveform type as well as its specs
+        :param int output: Description of parameter `output`.
+        :return: List containing all the parameters
+        :rtype: list
+
+        """
+        if output not in [1, 2]:
+            print("ERROR : Invalid output specified")
+            return None
+        ison = self.afg.query(f"OUTPut{output}?")[:-1] == "ON"
+        ret = self.afg.query(f"SOURce{output}:APPLy?")
+        ret = ret[1:-2].split(",")
+        type = ret[0]
+        freq = float(ret[1])
+        amp = float(ret[2])
+        offset = float(ret[3])
+        phase = float(ret[4])
+        return [ison, type, freq, amp, offset, phase]
+
+    def turn_on(self, output: int = 1):
+        """
+        Turns on an output channel on the last preset
+        :param int output: Output channel
+        :return: None
+        """
+        self.afg.write(f"OUTPut{output} ON")
+
+    def turn_off(self, output: int = 1):
+        """
+        Turns off an output channel on the last preset
+        :param int output: Output channel
+        :return: None
+        """
+        self.afg.write(f"OUTPut{output} OFF")
+
+    def sine(self, output: int = 1, freq: float = 100.0, amp: float = 2.0,
+             offset: float = 0.0, phase: float = 0.0):
+        """
+        Sets a sine wave on specified output
+        :param int output: Output channel
+        :param float freq: Frequency of the signa in Hz
+        :param float amp: Amplitude of the wave in Volts
+        :param float offset: Voltage offset
+        :param float phase: Signal phase in degree
+        :return: None
+        """
+        if output not in [1, 2]:
+            print("ERROR : Invalid output specified")
+            return None
+        self.afg.write(f":SOURce{output}:APPLy:SINusoid {freq}, {amp}, " +
+                       f"{offset}, {phase}")
+        pass
+
+    def square(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
+               offset: float = 0.0, phase: float = 0.0, duty: float = 50.0):
+        """
+        Sets a square wave on specified output
+        :param int output: Output channel
+        :param float freq: Frequency of the signa in Hz
+        :param float ampl: Amplitude of the wave in Volts
+        :param float offset: Voltage offset
+        :param float phase: Signal phase in degree
+        :param float duty: Duty cycle in percent
+        :return: None
+        """
+        pass
+
+    def ramp(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
+             offset: float = 0.0, phase: float = 0.0, symm: float = 50.0):
+        """
+        Sets a triangular wave on specified output
+        :param int output: Output channel
+        :param float freq: Frequency of the signa in Hz
+        :param float ampl: Amplitude of the wave in Volts
+        :param float offset: Voltage offset
+        :param float phase: Signal phase in degree
+        :param float symm: Symmetry factor in percent (equivalent to duty)
+        :return: None
+        """
+        pass
+
+    def pulse(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
+              offset: float = 0.0, phase: float = 0.0, duty: float = 50.0,
+              rise: float = 10e-9, fall: float = 10e-9):
+        """
+        Sets a triangular wave on specified output
+        :param int output: Output channel
+        :param float freq: Frequency of the signa in Hz
+        :param float ampl: Amplitude of the wave in Volts
+        :param float offset: Voltage offset
+        :param float phase: Signal phase in degree
+        :param float duty: Duty cycle in percent
+        :param float rise: Rise time in seconds
+        :param float fall: Fall time in seconds
+        :return: None
+        """
+        pass
+
+    def noise(self, output: int = 1, ampl: float = 5.0):
+        """
+        Sends noise on specified output
+        :param int output: Output channel
+        :param float ampl: Amplitude in Volts
+        :return: None
+        """
+        pass
+
+    def arbitrary(self, output: int = 1, freq: float = 100, ampl: float = 5.0,
+                  offset: float = 0.0, phase: float = 0.0,
+                  function: str = 'sinc'):
+        """
+        Arbitrary function signal
+        :param int output: Output channel
+        :param float freq: Frequency of the signa in Hz
+        :param float ampl: Amplitude of the wave in Volts
+        :param float offset: Voltage offset
+        :param float phase: Signal phase in degree
+        :param str function: Function type ('sinc', 'lorentz', 'log',
+            'gauss' ...)
+        :return: Description of returned object.
+        :rtype: type
+
+        """
+        pass
+
+    def close(self):
+        self.afg.close()
