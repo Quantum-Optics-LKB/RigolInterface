@@ -268,7 +268,7 @@ class USBSpectrumAnalyzer:
     def zero_span(self, center: float = 1e6, rbw: float = 100e3,
                   vbw: float = 30, swt: float = 50e-3, trig: bool = False):
         """Zero span measurement.
-        :param float center: Center frequency in Hz
+        :param float center: Center frequency in Hz, converted to int
         :param float rbw: Resolution bandwidth
         :param float vbw: Video bandwidth
         :param float swt: Total measurement time
@@ -279,7 +279,7 @@ class USBSpectrumAnalyzer:
         """
 
         self.sa.write(':FREQuency:SPAN 0')
-        self.sa.write(f':FREQuency:CENTer {center}')
+        self.sa.write(f':FREQuency:CENTer {int(center)}')
         self.sa.write(f':SWEep:TIME {swt}')  # in s.
         self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOG')
         # self.sa.write(':POWer:ASCale')
