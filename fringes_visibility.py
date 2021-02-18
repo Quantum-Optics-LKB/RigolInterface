@@ -14,8 +14,19 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 fringes = np.array(Image.open('fringes.tif'))[:, :, 0].astype(np.float32)
 # fringes = np.random.randint(size=(2048, 2048), low=0, high=256)
 
-# @numba.jit(nopython=True)
+
+@numba.jit(nopython=True)
 def shift5(arr, numi, numj, fill_value=0):
+    """Fast array shifting
+
+    :param np.ndarray arr: Array to shift
+    :param int numi: Pixel to shift for row number
+    :param int numj: Pixel to shift for column number
+    :param fill_value: Filling value
+    :return: The shifted array
+    :rtype: depends on fill value type np.ndarray[np.float32, ndim=2]
+
+    """
     result = np.empty_like(arr)
     if numi > 0:
         result[:numi, :] = fill_value
@@ -33,6 +44,7 @@ def shift5(arr, numi, numj, fill_value=0):
         result[:] = arr
     return result
 
+
 fft_side = pyfftw.empty_aligned(fringes.shape, dtype=np.complex64)
 fft_center = pyfftw.empty_aligned(fringes.shape, dtype=np.complex64)
 fft_obj_s = pyfftw.builders.fft2(fft_side,
@@ -49,11 +61,28 @@ ifft_obj_c = pyfftw.builders.ifft2(fft_center,
                                    planner_effort="FFTW_MEASURE")
 
 
-def get_visibility(frame, fft_side, fft_center, fft_obj_s, ifft_obj_s,
-                   ifft_obj_c):
-    # fringes_c = np.copy(frame)
-    fft_side[:] = frame
-    fft_center[:] = frame
+def get_visibility(frame, fft_side=None, fft_center=None, fft_obj_s=None,
+                   ifft_obj_s=None, ifft_obj_c=None):
+    """Gets the visibility of a given fringe pattern using Fourier filtering
+
+    :param np.ndarray frame: Fringe pattern.
+    :param pyfftw.empty_aligned fft_side: Array to perform fft on for side peak
+    :param pyfftw.empty_aligned fft_center: Array to perform fft on for center
+                                            peak.
+    :param pyfftw.FFTW fft_obj_s: Fft instance for the side peak
+    :param pyfftw.FFTW ifft_obj_s: Fft instance for the side peak
+    :param pyfftw.FFTW ifft_obj_c: Fft instance for the center peak
+    :return: Max of visibility and visibility map
+    :rtype: (float, np.ndarray[np.float32, ndim=2])
+
+    """
+
+    if fft_side is not None and fft_center is not None:
+        fft_side[:] = frame
+        fft_center[:] = frame
+    else:
+        fft_side = np.copy(frame)
+        fft_center = np.copy(frame)
     del frame
     kx = fft.fftshift(np.fft.fftfreq(fft_side.shape[1], 5.5e-6))
     ky = fft.fftshift(np.fft.fftfreq(fft_side.shape[0], 5.5e-6))
@@ -63,16 +92,23 @@ def get_visibility(frame, fft_side, fft_center, fft_obj_s, ifft_obj_s,
     roic = np.zeros(K.shape, dtype=np.complex64)
     roi[Kx > 10e2] = 1
     roic[K <= 10e2] = 1
-    fft_side = fft.fftshift(fft_obj_s(fft.fftshift(fft_side)))
+    if fft_obj_s is not None:
+        fft_side = fft.fftshift(fft_obj_s(fft.fftshift(fft_side)))
+    else:
+        fft_side = fft.fftshift(fft.fft2(fft.fftshift(fft_side)))
     fft_center[:] = fft_side*roic
     fft_side[:] = fft_side*roi
     max = np.where(np.abs(fft_side) == np.max(np.abs(fft_side)))
-    # fringes_fft_shift = shift(np.real(fringes_fft), (1024-max[0][0], 1024-max[1][0]), order=0) +\
-    #               1j * shift(np.imag(fringes_fft), (1024-max[0][0], 1024-max[1][0]), order=0)
     fft_side = shift5(fft_side, fft_side.shape[0]//2-max[0][0],
                       fft_side.shape[1]//2-max[1][0])
-    vis = fft.fftshift(ifft_obj_s(fft.ifftshift(fft_side)))
-    fft_center = fft.fftshift(ifft_obj_c(fft.ifftshift(fft_center)))
+    if ifft_obj_s is not None:
+        vis = fft.fftshift(ifft_obj_s(fft.ifftshift(fft_side)))
+    else:
+        vis = fft.fftshift(fft.ifft2(fft.ifftshift(fft_side)))
+    if ifft_obj_c is not None:
+        fft_center = fft.fftshift(ifft_obj_c(fft.ifftshift(fft_center)))
+    else:
+        fft_center = fft.fftshift(fft.ifft2(fft.ifftshift(fft_center)))
     vis /= fft_center
     # filter bad pixels
     vis[:10, :] = 0
