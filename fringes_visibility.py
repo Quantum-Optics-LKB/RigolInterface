@@ -61,7 +61,7 @@ def get_visibility(frame, fft_side, fft_center, fft_obj_s, ifft_obj_s,
     K = np.sqrt(Kx**2 + Ky**2)
     roi = np.zeros(K.shape, dtype=np.complex64)
     roic = np.zeros(K.shape, dtype=np.complex64)
-    roi[Kx > 6e2] = 1
+    roi[Kx > 10e2] = 1
     roic[K <= 10e2] = 1
     fft_side = fft.fftshift(fft_obj_s(fft.fftshift(fft_side)))
     fft_center[:] = fft_side*roic
@@ -71,9 +71,9 @@ def get_visibility(frame, fft_side, fft_center, fft_obj_s, ifft_obj_s,
     #               1j * shift(np.imag(fringes_fft), (1024-max[0][0], 1024-max[1][0]), order=0)
     fft_side = shift5(fft_side, fft_side.shape[0]//2-max[0][0],
                       fft_side.shape[1]//2-max[1][0])
-
     vis = fft.fftshift(ifft_obj_s(fft.ifftshift(fft_side)))
-    vis /= fft.fftshift(ifft_obj_c(fft.ifftshift(fft_center)))
+    fft_center = fft.fftshift(ifft_obj_c(fft.ifftshift(fft_center)))
+    vis /= fft_center
     # filter bad pixels
     vis[:10, :] = 0
     vis[:, :10] = 0
@@ -90,55 +90,55 @@ max = np.where(Vis == np.max(Vis))
 plt.imshow(Vis, vmin=0, vmax=1)
 plt.scatter(max[1][0], max[0][0], color='r')
 plt.show()
-fig = plt.figure()
-gs = fig.add_gridspec(2, 2)
-ax = []
-ax.append(fig.add_subplot(gs[0, 0]))
-ax.append(fig.add_subplot(gs[0, 1]))
-# spans two rows:
-ax.append(fig.add_subplot(gs[1, :]))
-xs = list(range(0, 200))
-ys = [0] * len(xs)
-ax[2].set_ylim((0, 100))
-im = ax[0].imshow(fringes, vmin=0, vmax=255, cmap='gray')
-im1 = ax[1].imshow(Vis, vmin=0, vmax=1)
-line, = ax[2].plot(xs, ys)
-cbar = fig.colorbar(im, ax=ax[0])
-cbar1 = fig.colorbar(im1, ax=ax[1])
-cbar.set_label("Intensity", rotation=270)
-cbar1.set_label("Visibility", rotation=270)
-
-ax[0].set_title("Camera")
-ax[1].set_title("Fringe visibility")
-ax[2].set_title("Fringe visibility")
-ax[2].set_xlabel("Samples")
-ax[2].set_ylabel("Visibility in %")
-plt.tight_layout()
-
-def animate(i, ys, fft_side, fft_center, fft_obj_s, ifft_obj_s,
-            ifft_obj_c):
-    # frame = np.random.randint(size=(2048, 2048), low=0, high=256)
-    frame = fringes
-    vis, Vis = get_visibility(frame, fft_side, fft_center, fft_obj_s,
-                              ifft_obj_s, ifft_obj_c)
-    im.set_data(frame)
-    im1.set_data(Vis)
-    # Add y to list
-    ys.append(100*vis)
-
-    # Limit y list to set number of items
-    ys = ys[-len(xs):]
-
-    # Update line with new Y values
-    line.set_ydata(ys)
-
-    return im, im1, line,
-
-
-ani = FuncAnimation(fig,
-                    animate,
-                    fargs=(ys, fft_side, fft_center, fft_obj_s, ifft_obj_s,
-                           ifft_obj_c),
-                    interval=50,
-                    blit=True)
-plt.show()
+# fig = plt.figure()
+# gs = fig.add_gridspec(2, 2)
+# ax = []
+# ax.append(fig.add_subplot(gs[0, 0]))
+# ax.append(fig.add_subplot(gs[0, 1]))
+# # spans two rows:
+# ax.append(fig.add_subplot(gs[1, :]))
+# xs = list(range(0, 200))
+# ys = [0] * len(xs)
+# ax[2].set_ylim((0, 100))
+# im = ax[0].imshow(fringes, vmin=0, vmax=255, cmap='gray')
+# im1 = ax[1].imshow(Vis, vmin=0, vmax=1)
+# line, = ax[2].plot(xs, ys)
+# cbar = fig.colorbar(im, ax=ax[0])
+# cbar1 = fig.colorbar(im1, ax=ax[1])
+# cbar.set_label("Intensity", rotation=270)
+# cbar1.set_label("Visibility", rotation=270)
+#
+# ax[0].set_title("Camera")
+# ax[1].set_title("Fringe visibility")
+# ax[2].set_title("Fringe visibility")
+# ax[2].set_xlabel("Samples")
+# ax[2].set_ylabel("Visibility in %")
+# plt.tight_layout()
+#
+# def animate(i, ys, fft_side, fft_center, fft_obj_s, ifft_obj_s,
+#             ifft_obj_c):
+#     # frame = np.random.randint(size=(2048, 2048), low=0, high=256)
+#     frame = fringes
+#     vis, Vis = get_visibility(frame, fft_side, fft_center, fft_obj_s,
+#                               ifft_obj_s, ifft_obj_c)
+#     im.set_data(frame)
+#     im1.set_data(Vis)
+#     # Add y to list
+#     ys.append(100*vis)
+#
+#     # Limit y list to set number of items
+#     ys = ys[-len(xs):]
+#
+#     # Update line with new Y values
+#     line.set_ydata(ys)
+#
+#     return im, im1, line,
+#
+#
+# ani = FuncAnimation(fig,
+#                     animate,
+#                     fargs=(ys, fft_side, fft_center, fft_obj_s, ifft_obj_s,
+#                            ifft_obj_c),
+#                     interval=50,
+#                     blit=True)
+# plt.show()
