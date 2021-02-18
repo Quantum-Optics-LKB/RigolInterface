@@ -9,6 +9,7 @@ import time
 import numba
 import pyfftw
 import multiprocessing
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 fringes = np.array(Image.open('fringes.tif'))[:, :, 0].astype(np.float32)
 # fringes = np.random.randint(size=(2048, 2048), low=0, high=256)
@@ -85,46 +86,59 @@ vis, Vis = get_visibility(fringes, fft_side, fft_center, fft_obj_s, ifft_obj_s,
                           ifft_obj_c)
 t1 = time.time()-t0
 print(f"Fringes visibility is {'{:.2%}'.format(vis)}  (took {'{:.4}'.format(t1)} s)")
-# max = np.where(Vis == np.max(Vis))
-# plt.imshow(Vis, vmin=0, vmax=1)
-# plt.scatter(max[1][0], max[0][0], color='r')
-# plt.show()
-# fig, ax = plt.subplots(1, 2)
-# xs = list(range(0, 200))
-# ys = [0] * len(xs)
-# ax[1].set_ylim((0, 120))
-# im = ax[0].imshow(fringes, vmin=0, vmax=255)
-# line, = ax[1].plot(xs, ys)
-# ax[0].set_title("Camera")
-# ax[1].set_title("Fringe visibility")
-# ax[1].set_xlabel("Samples")
-# ax[1].set_ylabel("Visibility in %")
+max = np.where(Vis == np.max(Vis))
+plt.imshow(Vis, vmin=0, vmax=1)
+plt.scatter(max[1][0], max[0][0], color='r')
+plt.show()
+fig = plt.figure()
+gs = fig.add_gridspec(2, 2)
+ax = []
+ax.append(fig.add_subplot(gs[0, 0]))
+ax.append(fig.add_subplot(gs[0, 1]))
+# spans two rows:
+ax.append(fig.add_subplot(gs[1, :]))
+xs = list(range(0, 200))
+ys = [0] * len(xs)
+ax[2].set_ylim((0, 100))
+im = ax[0].imshow(fringes, vmin=0, vmax=255, cmap='gray')
+im1 = ax[1].imshow(Vis, vmin=0, vmax=1)
+line, = ax[2].plot(xs, ys)
+cbar = fig.colorbar(im, ax=ax[0])
+cbar1 = fig.colorbar(im1, ax=ax[1])
+cbar.set_label("Intensity", rotation=270)
+cbar1.set_label("Visibility", rotation=270)
+
+ax[0].set_title("Camera")
+ax[1].set_title("Fringe visibility")
+ax[2].set_title("Fringe visibility")
+ax[2].set_xlabel("Samples")
+ax[2].set_ylabel("Visibility in %")
+plt.tight_layout()
+
+def animate(i, ys, fft_side, fft_center, fft_obj_s, ifft_obj_s,
+            ifft_obj_c):
+    # frame = np.random.randint(size=(2048, 2048), low=0, high=256)
+    frame = fringes
+    vis, Vis = get_visibility(frame, fft_side, fft_center, fft_obj_s,
+                              ifft_obj_s, ifft_obj_c)
+    im.set_data(frame)
+    im1.set_data(Vis)
+    # Add y to list
+    ys.append(100*vis)
+
+    # Limit y list to set number of items
+    ys = ys[-len(xs):]
+
+    # Update line with new Y values
+    line.set_ydata(ys)
+
+    return im, im1, line,
 
 
-# def animate(i, ys, fft_side, fft_center, fft_obj_s, ifft_obj_s,
-#             ifft_obj_c):
-#     # frame = np.random.randint(size=(2048, 2048), low=0, high=256)
-#     frame = fringes
-#     im.set_data(frame)
-#     vis, Vis = get_visibility(frame, fft_side, fft_center, fft_obj_s,
-#                               ifft_obj_s, ifft_obj_c)
-#
-#     # Add y to list
-#     ys.append(100*vis)
-#
-#     # Limit y list to set number of items
-#     ys = ys[-len(xs):]
-#
-#     # Update line with new Y values
-#     line.set_ydata(ys)
-#
-#     return im, line,
-#
-#
-# ani = FuncAnimation(fig,
-#                     animate,
-#                     fargs=(ys, fft_side, fft_center, fft_obj_s, ifft_obj_s,
-#                            ifft_obj_c),
-#                     interval=50,
-#                     blit=True)
-# plt.show()
+ani = FuncAnimation(fig,
+                    animate,
+                    fargs=(ys, fft_side, fft_center, fft_obj_s, ifft_obj_s,
+                           ifft_obj_c),
+                    interval=50,
+                    blit=True)
+plt.show()
