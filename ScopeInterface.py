@@ -337,7 +337,8 @@ class USBArbitraryFG:
             self.rm = visa.ResourceManager()
         if addr is None:
             instruments = self.rm.list_resources()
-            usb = list(filter(lambda x: 'USB' in x, instruments))
+            # usb = list(filter(lambda x: 'USB' in x, instruments))
+            usb = instruments
             if len(usb) == 0:
                 print('Could not find any device !')
                 print(f"\n Instruments found : {instruments}")
