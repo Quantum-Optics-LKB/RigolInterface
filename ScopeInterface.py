@@ -404,7 +404,20 @@ class USBArbitraryFG:
         :return: None
         """
         self.afg.write(f"OUTPut{output} OFF")
-
+                      
+    def dc_offset(self, output: int = 1, offset: float = 2.0):
+        """
+        Applies a constant voltage on the specified output
+        :param int output: Output channel
+        :param float offset: Voltage applied in Volts
+        :return: None
+        """
+        if output not in [1, 2]:
+            print("ERROR : Invalid output specified")
+            return None
+        self.afg.write(f":SOURce{output}:APPLy:DC {offset}")
+        self.turn_on(output)
+                      
     def sine(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
              offset: float = 0.0, phase: float = 0.0):
         """
