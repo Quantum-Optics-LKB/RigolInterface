@@ -28,7 +28,8 @@ class USBScope:
             self.rm = visa.ResourceManager()
         if addr is None:
             instruments = self.rm.list_resources()
-            usb = list(filter(lambda x: 'USB' in x, instruments))
+            # usb = list(filter(lambda x: 'USB' in x, instruments))
+            usb = instruments
             if len(usb) == 0:
                 print('Could not find any device !')
                 print(f"\n Instruments found : {instruments}")
@@ -404,7 +405,7 @@ class USBArbitraryFG:
         :return: None
         """
         self.afg.write(f"OUTPut{output} OFF")
-                      
+
     def dc_offset(self, output: int = 1, offset: float = 2.0):
         """
         Applies a constant voltage on the specified output
@@ -417,7 +418,7 @@ class USBArbitraryFG:
             return None
         self.afg.write(f":SOURce{output}:APPLy:DC {offset}")
         self.turn_on(output)
-                      
+
     def sine(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
              offset: float = 0.0, phase: float = 0.0):
         """
