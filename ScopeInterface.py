@@ -9,10 +9,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import os
-if sys.platform.startswith('linux'):
-    import pyvisa as visa
-elif sys.platform.startswith('win32'):
-    import visa
+# if sys.platform.startswith('linux'):
+#     import pyvisa as visa
+# elif sys.platform.startswith('win32'):
+#     import visa
+import pyvisa as visa
 
 plt.ioff()
 
@@ -39,9 +40,12 @@ class USBScope:
                       ' please choose instrument')
                 for counter, dev in enumerate(usb):
                     instr = self.rm.open_resource(dev)
-                    print(f"{dev} : {counter} (" +
-                          f"{instr.query('*IDN')})")
-                    instr.close()
+                    try:
+                        print(f"{dev} : {counter} (" +
+                              f"{instr.query('*IDN?')})")
+                        instr.close()
+                    except:
+                        print("Could not open device :'(")
                 answer = input("\n Choice (number between 0 and " +
                                f"{len(usb)-1}) ? ")
                 answer = int(answer)
@@ -59,6 +63,7 @@ class USBScope:
 
         # Get one waveform to retrieve metrics
         self.scope.write(":STOP")
+        self.sample_rate = float(self.scope.query(':ACQuire:SRATe?'))
 
     def get_waveform(self, channels: list = [1], plot: bool = False):
         """
@@ -121,7 +126,8 @@ class USBScope:
                     # Calculate the next stop of the waveform in the internal
                     # memory
                     stop = (loopcount+1)*250000
-                    print(stop)
+                    if plot:
+                        print(stop)
                     self.scope.write(":WAV:STOP {0}".format(stop))
                     # Extent the rawdata variables with the new values.
                     rawdata.extend(self.scope.query_binary_values(":WAV:DATA?",
@@ -266,8 +272,8 @@ class USBSpectrumAnalyzer:
                 print("ERROR : Could not connect to specified device")
         self.sa.write(":STOP")
 
-    def zero_span(self, center: float = 1e6, rbw: float = 100e3,
-                  vbw: float = 30, swt: float = 50e-3, trig: bool = False):
+    def zero_span(self, center: float = 1e6, rbw: int = 100,
+                  vbw: int = 30, swt: float = 50e-3, trig: bool = False):
         """Zero span measurement.
         :param float center: Center frequency in Hz, converted to int
         :param float rbw: Resolution bandwidth
@@ -278,24 +284,21 @@ class USBSpectrumAnalyzer:
         :rtype: np.ndarray
 
         """
-
         self.sa.write(':FREQuency:SPAN 0')
-        self.sa.write(f':FREQuency:CENTer {int(center)}')
-        self.sa.write(f':SWEep:TIME {swt}')  # in s.
-        self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOG')
+        self.sa.write(f':FREQuency:CENTer {center}')
+        self.sa.write(f':BANDwidth:RESolution {int(rbw)}')
+        self.sa.write(f':BANDwidth:VIDeo {int(vbw)}')
+        self.sa.write(f':SENSe:SWEep:TIME {swt}')  # in s.
+        self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOGarithmic')
         # self.sa.write(':POWer:ASCale')
         if trig:
             self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
             self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
 
-        self.sa.write(':CONFigure:ACPOWer')
+        self.sa.write(':CONFigure:ACPower')
         self.sa.write(':TPOWer:LLIMit 0')
         self.sa.write(f':TPOWer:RLIMit {swt}')
         self.sa.write(':FORMat:TRACe:DATA ASCii')
-
-        self.sa.write(f':BANDwidth:RESolution {rbw}')
-        self.sa.write(f':BANDwidth:VIDeo {vbw}')
-
         data = self.query_data()
         sweeptime = float(self.sa.query(':SWEep:TIME?'))
         time = np.linspace(0, sweeptime, len(data))
