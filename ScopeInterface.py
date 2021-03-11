@@ -64,13 +64,15 @@ class USBScope:
         # Get one waveform to retrieve metrics
         self.scope.write(":STOP")
         self.sample_rate = float(self.scope.query(':ACQuire:SRATe?'))
+        self.scope.write(":RUN")
 
     def get_waveform(self, channels: list = [1], plot: bool = False):
         """
         Gets the waveform of a selection of channels
         :param channels: List of channels
         :param plot: Will plot the traces
-        :returns: Data, Time np.ndarrays containing the traces
+        :returns: Data, Time np.ndarrays containing the traces of shape 
+        (channels, nbr of points) if len(channels)>1
         """
         Data = []
         Time = []
@@ -78,6 +80,16 @@ class USBScope:
             fig = plt.figure()
             ax = fig.add_subplot(111)
             leg = []
+        if len(channels) > 4:
+            print("ERROR : Invalid channel list provided" +
+                  " (List too long)")
+            sys.exit()
+        for chan in channels:
+            if chan > 4:
+                print("ERROR : Invalid channel list provided" +
+                      " (Channels are 1,2,3,4)")
+                sys.exit()
+        self.scope.write(":STOP")
         # Select channels
         for chan in channels:
             self.scope.write(f":WAV:SOUR CHAN{chan}")
@@ -159,8 +171,15 @@ class USBScope:
         if plot:
             ax.legend(leg)
             plt.show()
+        self.scope.write(":RUN")
         Data = np.asarray(Data)
         Time = np.asarray(Time)
+        if len(channels)>1:
+            Data.reshape((len(channels), len(Data)//len(channels)))
+            Time.reshape((len(channels), len(Time)//len(channels)))
+        elif len(channels)==1:
+            Data = Data[0, :]
+            Time = Time[0, :]
         return Data, Time
 
     def set_xref(self, ref: float):
@@ -270,10 +289,9 @@ class USBSpectrumAnalyzer:
                 print(f"Connected to {self.sa.query('*IDN?')}")
             except Exception:
                 print("ERROR : Could not connect to specified device")
-        self.sa.write(":STOP")
 
     def zero_span(self, center: float = 1e6, rbw: int = 100,
-                  vbw: int = 30, swt: float = 50e-3, trig: bool = False):
+                  vbw: int = 30, swt: float = 50e-3, trig: bool = None):
         """Zero span measurement.
         :param float center: Center frequency in Hz, converted to int
         :param float rbw: Resolution bandwidth
@@ -291,14 +309,22 @@ class USBSpectrumAnalyzer:
         self.sa.write(f':SENSe:SWEep:TIME {swt}')  # in s.
         self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOGarithmic')
         # self.sa.write(':POWer:ASCale')
-        if trig:
-            self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
-            self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
-
+        if trig is not None:
+            trigstate = self.sa.query(':TRIGger:SEQuence:SOURce?')
+            istrigged = trigstate != 'IMM'
+            if trig and not(istrigged):
+                self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
+                self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
+            elif not(trig) and istrigged:
+                self.sa.write(':TRIGger:SEQuence:SOURce IMMediate')
         self.sa.write(':CONFigure:ACPower')
         self.sa.write(':TPOWer:LLIMit 0')
         self.sa.write(f':TPOWer:RLIMit {swt}')
         self.sa.write(':FORMat:TRACe:DATA ASCii')
+        # if specAn was trigged before, put it back in the same state
+        if trig is not None:
+            if not(trig) and istrigged:
+                self.sa.write(f":TRIGger:SEQuence:SOURce {trigstate}")
         data = self.query_data()
         sweeptime = float(self.sa.query(':SWEep:TIME?'))
         time = np.linspace(0, sweeptime, len(data))
