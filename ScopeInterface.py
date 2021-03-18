@@ -207,11 +207,9 @@ class USBScope:
 
     def set_yres(self, res: float, channel: int = 1):
         """
-        Sets the vertical resolution
-        :param float res: Description of parameter `res`.
-        :return: Description of returned object.
-        :rtype: type
-
+        Sets the vertical resolution in V/div
+        :param float res: Vertical resolution in V/div
+        :return: None
         """
         self.scope.write(f":CHANnel{channel}:SCALe {res}")
 
