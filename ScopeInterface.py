@@ -71,7 +71,7 @@ class USBScope:
         Gets the waveform of a selection of channels
         :param channels: List of channels
         :param plot: Will plot the traces
-        :returns: Data, Time np.ndarrays containing the traces of shape 
+        :returns: Data, Time np.ndarrays containing the traces of shape
         (channels, nbr of points) if len(channels)>1
         """
         Data = []
@@ -198,18 +198,39 @@ class USBScope:
             print("Improper value for XREF !")
         self.xref = self.scope.query_ascii_values(":WAV:XREF?")[0]
 
-    def set_yref(self, ref: float, channel: list = [1]):
+    def set_yref(self, ref: float, channel: int = 1):
         try:
             self.scope.write_ascii_values(":WAV:YREF", ref)
         except (ValueError or TypeError or AttributeError):
             print("Improper value for YREF !")
         self.xref = self.scope.query_ascii_values(":WAV:YREF?")[0]
 
-    def set_yres(self, res: float):
-        self.scope.write_ascii_values(":WAV:YINC", res)
+    def set_yres(self, res: float, channel: int = 1):
+        """
+        Sets the vertical resolution
+        :param float res: Description of parameter `res`.
+        :return: Description of returned object.
+        :rtype: type
+
+        """
+        self.scope.write(f":CHANnel{channel}:SCALe {res}")
 
     def set_xres(self, res: float):
-        self.scope.write_ascii_values(":WAV:XINC", res)
+        """
+        Sets the time resolution in s/div (10 divs on screen)
+        :param float res: Resolution in s/div
+        :return: None
+        """
+        self.scope.write(f":TIMebase:SCALe {res}")
+
+    def set_memory_depth(self, res: float):
+        """
+        Sets the scope's memory depth (points number)
+        :param float res: Memory depth in [1e3, 1e4, 1e5, 1e6, 1e7, 2.5e7, 5e7,
+            1e8, 1.25e8, 2.5e8, 5e8]
+        :return: None
+        """
+        self.scope.write(f":ACQuire:MDEPth {res}")
 
     def measurement(self, channels: list = [1],
                     res: list = None):
@@ -278,7 +299,7 @@ class USBSpectrumAnalyzer:
                 answer = input("\n Choice (number between 0 and " +
                                f"{len(usb)-1}) ? ")
                 answer = int(answer)
-                self.sa = self.rm.open_resource(usb[answer])
+                self.sa = self.rm.open, res_resource(usb[answer])
                 print(f"Connected to {self.sa.query('*IDN?')}")
             else:
                 self.sa = self.rm.open_resource(usb[0])
