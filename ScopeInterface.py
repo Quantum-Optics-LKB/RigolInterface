@@ -174,10 +174,10 @@ class USBScope:
         self.scope.write(":RUN")
         Data = np.asarray(Data)
         Time = np.asarray(Time)
-        if len(channels)>1:
+        if len(channels) > 1:
             Data.reshape((len(channels), len(Data)//len(channels)))
             Time.reshape((len(channels), len(Time)//len(channels)))
-        elif len(channels)==1:
+        elif len(channels) == 1:
             Data = Data[0, :]
             Time = Time[0, :]
         return Data, Time
@@ -189,7 +189,6 @@ class USBScope:
         :type ref: float
         :return: None
         :rtype: None
-
         """
 
         try:
@@ -297,7 +296,7 @@ class USBSpectrumAnalyzer:
                 answer = input("\n Choice (number between 0 and " +
                                f"{len(usb)-1}) ? ")
                 answer = int(answer)
-                self.sa = self.rm.open, res_resource(usb[answer])
+                self.sa = self.rm.open_resource(usb[answer])
                 print(f"Connected to {self.sa.query('*IDN?')}")
             else:
                 self.sa = self.rm.open_resource(usb[0])
