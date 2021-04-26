@@ -348,6 +348,44 @@ class USBSpectrumAnalyzer:
         time = np.linspace(0, sweeptime, len(data))
         return data, time
 
+    def span(self, span: float, center: float = 1e6, rbw: int = 100,
+             vbw: int = 30, swt: float = 50e-3, trig: bool = None):
+        """Sets the span of the measurement.
+        :param float span: Span in Hz, converted to int
+        :param float center: Center frequency in Hz, converted to int
+        :param float rbw: Resolution bandwidth
+        :param float vbw: Video bandwidth
+        :param float swt: Total measurement time
+        :param bool trig: External trigger
+        :return: data, time for data and time
+        :rtype: np.ndarray
+
+        """
+        self.sa.write(f':FREQuency:SPAN {int(span)}')
+        self.sa.write(f':FREQuency:CENTer {center}')
+        self.sa.write(f':BANDwidth:RESolution {int(rbw)}')
+        self.sa.write(f':BANDwidth:VIDeo {int(vbw)}')
+        self.sa.write(f':SENSe:SWEep:TIME {swt}')  # in s.
+        self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOGarithmic')
+        # self.sa.write(':POWer:ASCale')
+        if trig is not None:
+            trigstate = self.sa.query(':TRIGger:SEQuence:SOURce?')
+            istrigged = trigstate != 'IMM'
+            if trig and not(istrigged):
+                self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
+                self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
+            elif not(trig) and istrigged:
+                self.sa.write(':TRIGger:SEQuence:SOURce IMMediate')
+        self.sa.write(':CONFigure:ACPower')
+        self.sa.write(':FORMat:TRACe:DATA ASCii')
+        # if specAn was trigged before, put it back in the same state
+        if trig is not None:
+            if not(trig) and istrigged:
+                self.sa.write(f":TRIGger:SEQuence:SOURce {trigstate}")
+        data = self.query_data()
+        freqs = np.arange(center-span/2, center+span/2, rbw)
+        return data, freqs
+
     def query_data(self):
         """Lower level function to grab the data from the SpecAnalyzer
 
