@@ -501,7 +501,7 @@ class USBArbitraryFG:
         if output not in [1, 2]:
             print("ERROR : Invalid output specified")
             return None
-        self.afg.write(f":SOURce{output}:APPLy:DC {offset}")
+        self.afg.write(f":SOURce{output}:APPLy:DC 1,1,{offset}")
         self.turn_on(output)
 
     def sine(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
