@@ -110,7 +110,7 @@ class USBScope:
             memory_depth = (time_base*12) * self.sample_rate
 
             # Set the waveform reading mode to RAW.
-            self.scope.write(":WAV:MODE RAW")
+            self.scope.write(":WAV:MODE NORMal")
             # Set return format to Byte.
             self.scope.write(":WAV:FORM BYTE")
 
