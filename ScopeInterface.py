@@ -71,7 +71,7 @@ class USBScope:
         Gets the waveform of a selection of channels
         :param channels: List of channels
         :param plot: Will plot the traces
-        :returns: Data, Time np.ndarrays containing the traces of shape
+        :returns: Data, Time np.ndarrays containing the traces of shape 
         (channels, nbr of points) if len(channels)>1
         """
         Data = []
@@ -174,10 +174,7 @@ class USBScope:
         self.scope.write(":RUN")
         Data = np.asarray(Data)
         Time = np.asarray(Time)
-        if len(channels) > 1:
-            Data.reshape((len(channels), len(Data)//len(channels)))
-            Time.reshape((len(channels), len(Time)//len(channels)))
-        elif len(channels) == 1:
+        if len(channels)==1:
             Data = Data[0, :]
             Time = Time[0, :]
         return Data, Time
@@ -189,6 +186,7 @@ class USBScope:
         :type ref: float
         :return: None
         :rtype: None
+
         """
 
         try:
@@ -197,37 +195,18 @@ class USBScope:
             print("Improper value for XREF !")
         self.xref = self.scope.query_ascii_values(":WAV:XREF?")[0]
 
-    def set_yref(self, ref: float, channel: int = 1):
+    def set_yref(self, ref: float, channel: list = [1]):
         try:
             self.scope.write_ascii_values(":WAV:YREF", ref)
         except (ValueError or TypeError or AttributeError):
             print("Improper value for YREF !")
         self.xref = self.scope.query_ascii_values(":WAV:YREF?")[0]
 
-    def set_yres(self, res: float, channel: int = 1):
-        """
-        Sets the vertical resolution in V/div
-        :param float res: Vertical resolution in V/div
-        :return: None
-        """
-        self.scope.write(f":CHANnel{channel}:SCALe {res}")
+    def set_yres(self, res: float):
+        self.scope.write_ascii_values(":WAV:YINC", res)
 
     def set_xres(self, res: float):
-        """
-        Sets the time resolution in s/div (10 divs on screen)
-        :param float res: Resolution in s/div
-        :return: None
-        """
-        self.scope.write(f":TIMebase:SCALe {res}")
-
-    def set_memory_depth(self, res: float):
-        """
-        Sets the scope's memory depth (points number)
-        :param float res: Memory depth in [1e3, 1e4, 1e5, 1e6, 1e7, 2.5e7, 5e7,
-            1e8, 1.25e8, 2.5e8, 5e8]
-        :return: None
-        """
-        self.scope.write(f":ACQuire:MDEPth {res}")
+        self.scope.write_ascii_values(":WAV:XINC", res)
 
     def measurement(self, channels: list = [1],
                     res: list = None):
@@ -348,44 +327,6 @@ class USBSpectrumAnalyzer:
         time = np.linspace(0, sweeptime, len(data))
         return data, time
 
-    def span(self, span: float, center: float = 1e6, rbw: int = 100,
-             vbw: int = 30, swt: float = 50e-3, trig: bool = None):
-        """Sets the span of the measurement.
-        :param float span: Span in Hz, converted to int
-        :param float center: Center frequency in Hz, converted to int
-        :param float rbw: Resolution bandwidth
-        :param float vbw: Video bandwidth
-        :param float swt: Total measurement time
-        :param bool trig: External trigger
-        :return: data, time for data and time
-        :rtype: np.ndarray
-
-        """
-        self.sa.write(f':FREQuency:SPAN {int(span)}')
-        self.sa.write(f':FREQuency:CENTer {center}')
-        self.sa.write(f':BANDwidth:RESolution {int(rbw)}')
-        self.sa.write(f':BANDwidth:VIDeo {int(vbw)}')
-        self.sa.write(f':SENSe:SWEep:TIME {swt}')  # in s.
-        self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOGarithmic')
-        # self.sa.write(':POWer:ASCale')
-        if trig is not None:
-            trigstate = self.sa.query(':TRIGger:SEQuence:SOURce?')
-            istrigged = trigstate != 'IMM'
-            if trig and not(istrigged):
-                self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
-                self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
-            elif not(trig) and istrigged:
-                self.sa.write(':TRIGger:SEQuence:SOURce IMMediate')
-        self.sa.write(':CONFigure:ACPower')
-        self.sa.write(':FORMat:TRACe:DATA ASCii')
-        # if specAn was trigged before, put it back in the same state
-        if trig is not None:
-            if not(trig) and istrigged:
-                self.sa.write(f":TRIGger:SEQuence:SOURce {trigstate}")
-        data = self.query_data()
-        freqs = np.arange(center-span/2, center+span/2, rbw)
-        return data, freqs
-
     def query_data(self):
         """Lower level function to grab the data from the SpecAnalyzer
 
@@ -501,7 +442,7 @@ class USBArbitraryFG:
         if output not in [1, 2]:
             print("ERROR : Invalid output specified")
             return None
-        self.afg.write(f":SOURce{output}:APPLy:DC 1,1,{offset}")
+        self.afg.write(f":SOURce{output}:APPLy:DC {offset}")
         self.turn_on(output)
 
     def sine(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
