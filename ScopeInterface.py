@@ -111,7 +111,7 @@ class USBScope:
             time_base = self.scope.query_ascii_values(":TIM:SCAL?")[0]
             # Calculate memory depth for later use.
             # memory_depth = (time_base*12) * self.sample_rate
-            memory_depth = self.scope.query_ascii_values(":ACQuire:MDEPth?")
+            memory_depth = self.scope.query_ascii_values(":ACQuire:MDEPth?")[0]
 
             # Set the waveform reading mode to RAW.
             self.scope.write(":WAV:MODE RAW")
