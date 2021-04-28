@@ -66,12 +66,14 @@ class USBScope:
         self.sample_rate = float(self.scope.query(':ACQuire:SRATe?'))
         self.scope.write(":RUN")
 
-    def get_waveform(self, channels: list = [1], plot: bool = False):
+    def get_waveform(self, channels: list = [1], plot: bool = False,
+                     memdepth: float = 10e3):
         """
         Gets the waveform of a selection of channels
-        :param channels: List of channels
-        :param plot: Will plot the traces
-        :returns: Data, Time np.ndarrays containing the traces of shape 
+        :param list channels: List of channels
+        :param bool plot: Will plot the traces
+        :param float memdepth: Memory depth (number of points)
+        :returns: Data, Time np.ndarrays containing the traces of shape
         (channels, nbr of points) if len(channels)>1
         """
         Data = []
@@ -89,6 +91,7 @@ class USBScope:
                 print("ERROR : Invalid channel list provided" +
                       " (Channels are 1,2,3,4)")
                 sys.exit()
+        self.scope.write(f":ACQuire:MDEPth {int(memdepth)}")
         self.scope.write(":STOP")
         # Select channels
         for chan in channels:
@@ -107,10 +110,11 @@ class USBScope:
             # Get time base to calculate memory depth.
             time_base = self.scope.query_ascii_values(":TIM:SCAL?")[0]
             # Calculate memory depth for later use.
-            memory_depth = (time_base*12) * self.sample_rate
+            # memory_depth = (time_base*12) * self.sample_rate
+            memory_depth = self.scope.query_ascii_values(":ACQuire:MDEPth?")
 
             # Set the waveform reading mode to RAW.
-            self.scope.write(":WAV:MODE NORMal")
+            self.scope.write(":WAV:MODE RAW")
             # Set return format to Byte.
             self.scope.write(":WAV:FORM BYTE")
 
