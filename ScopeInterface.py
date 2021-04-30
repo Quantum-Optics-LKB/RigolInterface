@@ -30,7 +30,8 @@ class USBScope:
         if addr is None:
             instruments = self.rm.list_resources()
             # usb = list(filter(lambda x: 'USB' in x, instruments))
-            usb = instruments
+            usb = list(filter(lambda x: 'ASRL1' not in x, instruments))
+            # usb = instruments
             if len(usb) == 0:
                 print('Could not find any device !')
                 print(f"\n Instruments found : {instruments}")
@@ -263,7 +264,8 @@ class USBSpectrumAnalyzer:
             self.rm = visa.ResourceManager()
         if addr is None:
             instruments = self.rm.list_resources()
-            usb = list(filter(lambda x: 'USB' in x, instruments))
+            # usb = list(filter(lambda x: 'USB' in x, instruments))
+            usb = list(filter(lambda x: 'ASRL1' not in x, instruments))
             if len(usb) == 0:
                 print('Could not find any device !')
                 print(f"\n Instruments found : {instruments}")
@@ -292,12 +294,12 @@ class USBSpectrumAnalyzer:
                 print("ERROR : Could not connect to specified device")
 
     def zero_span(self, center: float = 1e6, rbw: int = 100,
-                  vbw: int = 30, swt: float = 50e-3, trig: bool = None):
+                  vbw: int = 30, swt: float = 100e-6, trig: bool = None):
         """Zero span measurement.
         :param float center: Center frequency in Hz, converted to int
         :param float rbw: Resolution bandwidth
         :param float vbw: Video bandwidth
-        :param float swt: Total measurement time
+        :param float swt: Total measurement time. Except if set to 'auto'
         :param bool trig: External trigger
         :return: data, time for data and time
         :rtype: np.ndarray
@@ -307,7 +309,10 @@ class USBSpectrumAnalyzer:
         self.sa.write(f':FREQuency:CENTer {center}')
         self.sa.write(f':BANDwidth:RESolution {int(rbw)}')
         self.sa.write(f':BANDwidth:VIDeo {int(vbw)}')
-        self.sa.write(f':SENSe:SWEep:TIME {swt}')  # in s.
+        if swt != 'auto':
+            self.sa.write(f':SENSe:SWEep:TIME {swt}')  # in s.
+        else:
+            self.sa.write(f':SENSe:SWEep:TIME:AUTO ON')
         self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOGarithmic')
         # self.sa.write(':POWer:ASCale')
         if trig is not None:
@@ -369,13 +374,15 @@ class USBArbitraryFG:
         if addr is None:
             instruments = self.rm.list_resources()
             # usb = list(filter(lambda x: 'USB' in x, instruments))
-            usb = instruments
+            # usb = instruments
+            usb = list(filter(lambda x: 'ASRL1' not in x, instruments))
             if len(usb) == 0:
                 print('Could not find any device !')
                 print(f"\n Instruments found : {instruments}")
                 sys.exit(-1)
             elif len(usb) > 1:
-                print('More than one USB instrument connected' +
+                print(usb)
+                print('More than one USB instruments connected' +
                       ' please choose instrument')
                 for counter, dev in enumerate(usb):
                     instr = self.rm.open_resource(dev)
