@@ -44,8 +44,8 @@ class USBScope:
                         print(f"{dev} : {counter} (" +
                               f"{instr.query('*IDN?')})")
                         instr.close()
-                    except:
-                        print("Could not open device :'(")
+                    except Exception:
+                        print(f"Could not open device : {Exception}")
                 answer = input("\n Choice (number between 0 and " +
                                f"{len(usb)-1}) ? ")
                 answer = int(answer)
@@ -292,7 +292,7 @@ class USBSpectrumAnalyzer:
                 print("ERROR : Could not connect to specified device")
 
     def zero_span(self, center: float = 1e6, rbw: int = 100,
-                  vbw: int = 30, swt: float = 50e-3, trig: bool = None):
+                  vbw: int = 30, swt: float = 'auto', trig: bool = None):
         """Zero span measurement.
         :param float center: Center frequency in Hz, converted to int
         :param float rbw: Resolution bandwidth
@@ -307,7 +307,10 @@ class USBSpectrumAnalyzer:
         self.sa.write(f':FREQuency:CENTer {center}')
         self.sa.write(f':BANDwidth:RESolution {int(rbw)}')
         self.sa.write(f':BANDwidth:VIDeo {int(vbw)}')
-        self.sa.write(f':SENSe:SWEep:TIME {swt}')  # in s.
+        if swt != 'auto':
+            self.sa.write(f':SENSe:SWEep:TIME {swt}')  # in s.
+        else:
+            self.sa.write('SENSe:SWEep:AUTO ON')
         self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOGarithmic')
         # self.sa.write(':POWer:ASCale')
         if trig is not None:
@@ -330,6 +333,48 @@ class USBSpectrumAnalyzer:
         sweeptime = float(self.sa.query(':SWEep:TIME?'))
         time = np.linspace(0, sweeptime, len(data))
         return data, time
+
+    def span(self, center: float = 22.5e6, span: float = 45e6, rbw: int = 100,
+             vbw: int = 30, swt: float = 'auto', trig: bool = None):
+        """Arbitrary span measurement.
+        :param float center: Center frequency in Hz
+        :param float span: span
+        :param float rbw: Resolution bandwidth
+        :param float vbw: Video bandwidth
+        :param float swt: Total measurement time
+        :param bool trig: External trigger
+        :return: data, freqs for data and frequencies
+        :rtype: np.ndarray
+
+        """
+        self.sa.write(f':FREQuency:SPAN {span}')
+        self.sa.write(f':FREQuency:CENTer {center}')
+        self.sa.write(f':BANDwidth:RESolution {int(rbw)}')
+        self.sa.write(f':BANDwidth:VIDeo {int(vbw)}')
+        if swt != 'auto':
+            self.sa.write(f':SENSe:SWEep:TIME {swt}')  # in s.
+        else:
+            self.sa.write(':SENSe:SWEep:TIME:AUTO ON')
+        self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOGarithmic')
+        # self.sa.write(':POWer:ASCale')
+        if trig is not None:
+            trigstate = self.sa.query(':TRIGger:SEQuence:SOURce?')
+            istrigged = trigstate != 'IMM'
+            if trig and not(istrigged):
+                self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
+                self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
+            elif not(trig) and istrigged:
+                self.sa.write(':TRIGger:SEQuence:SOURce IMMediate')
+        self.sa.write(':CONFigure:ACPower')
+        self.sa.write(':FORMat:TRACe:DATA ASCii')
+        # if specAn was trigged before, put it back in the same state
+        if trig is not None:
+            if not(trig) and istrigged:
+                self.sa.write(f":TRIGger:SEQuence:SOURce {trigstate}")
+        data = self.query_data()
+        # sweeptime = float(self.sa.query(':SWEep:TIME?'))
+        freqs = np.linspace(center-span//2, center+span//2, len(data))
+        return data, freqs
 
     def query_data(self):
         """Lower level function to grab the data from the SpecAnalyzer
