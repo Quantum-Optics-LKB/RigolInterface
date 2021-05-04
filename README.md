@@ -1,3 +1,2 @@
 # RigolInterface
-Python interface for Rigol scopes
-For now USB, but should be very easy to convert to LAN or anything else.
+Python interface for Rigol scopes. USB or TCPIP or anything.
