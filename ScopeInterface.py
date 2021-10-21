@@ -445,10 +445,14 @@ class USBArbitraryFG:
                 print(f"Connected to {self.afg.query('*IDN?')}")
             except Exception:
                 print("ERROR : Could not connect to specified device")
-        self.afg.write(":STOP")
 
-    def get_waveform(self, output: int = 1) -> [bool, str, float, float, float,
-                                                float]:
+        if self.afg.query("OUTPut1?")[:-1] == "ON":
+            self.afg.write("OUTPut1 OFF")
+        if self.afg.query("OUTPut2?")[:-1] == "ON":
+            self.afg.write("OUTPut2 OFF")
+
+
+    def get_waveform(self, output: int = 1) -> list:
         """
         Gets the waveform type as well as its specs
         :param int output: Description of parameter `output`.
@@ -495,7 +499,8 @@ class USBArbitraryFG:
         if output not in [1, 2]:
             print("ERROR : Invalid output specified")
             return None
-        self.afg.write(f":SOURce{output}:APPLy:DC {offset}")
+        self.afg.write(f":SOURce{output}:FUNCtion DC")
+        self.afg.write(f":SOURce{output}:APPLy:USER 1, 1, {offset}, 0")
         self.turn_on(output)
 
     def sine(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
@@ -641,9 +646,9 @@ class USBArbitraryFG:
         if function not in funcnames:
             print("ERROR : Unknwown function specified")
             pass
+        self.afg.write(f":SOURce{output}:FUNCtion {function}")
         self.afg.write(f":SOURce{output}:APPLy:USER {freq}, {ampl}, " +
                        f"{offset}, {phase}")
-        self.afg.write(f":SOURce{output}:FUNCtion {function}")
         self.turn_on(output)
 
     def close(self):
