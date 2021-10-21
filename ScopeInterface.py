@@ -9,6 +9,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import sys
 import os
+import time
 # if sys.platform.startswith('linux'):
 #     import pyvisa as visa
 # elif sys.platform.startswith('win32'):
@@ -16,6 +17,52 @@ import os
 import pyvisa as visa
 
 plt.ioff()
+
+
+_PSEC_PER_SEC = pow(10, 12)
+
+
+def _parse_time(s):
+    (man, _, exp) = s.partition('e')
+    exp = int(exp)
+    (intg, _, frac) = man.partition('.')
+    intg = int(intg) * _PSEC_PER_SEC
+    frac_digits = len(frac)
+    frac = int(frac)
+    if intg < 0:
+        frac *= -1
+    intg += frac * pow(10, 11 - (frac_digits - 1))
+    if exp > 0:
+        intg *= pow(10, exp)
+    elif exp < 0:
+        intg //= pow(10, abs(exp))
+    return
+
+
+class _Preamble:
+    def __init__(self, s):
+        elems = s.split(',')
+        self.points = int(elems[2])
+        self.count = int(elems[3])
+        self.x_inc_str = elems[4]
+        self.x_inc = float(elems[4])
+        self.x_orig_str = elems[5]
+        self.x_orig = float(elems[5])
+        self.y_inc = float(elems[7])
+        self.y_orig = int(elems[8])
+        self.y_ref = int(elems[9])
+
+    def normalize(self, raw_y):
+        yvals = raw_y.astype(np.float64)
+        yvals -= (self.y_orig + self.y_ref)
+        yvals *= self.y_inc
+        return yvals
+
+    def x_values(self):
+        origin = _parse_time(self.x_orig_str)
+        step = _parse_time(self.x_inc_str)
+        stop = origin + step * self.points
+        return np.arange(origin, stop, step)
 
 
 class USBScope:
@@ -45,8 +92,8 @@ class USBScope:
                         print(f"{dev} : {counter} (" +
                               f"{instr.query('*IDN?')})")
                         instr.close()
-                    except:
-                        print("Could not open device :'(")
+                    except Exception:
+                        print(f"Could not open device : {Exception}")
                 answer = input("\n Choice (number between 0 and " +
                                f"{len(usb)-1}) ? ")
                 answer = int(answer)
@@ -67,8 +114,8 @@ class USBScope:
         self.sample_rate = float(self.scope.query(':ACQuire:SRATe?'))
         self.scope.write(":RUN")
 
-    def get_waveform(self, channels: list = [1], plot: bool = False,
-                     memdepth: float = 10e3):
+    def get_waveform_old(self, channels: list = [1], plot: bool = False,
+                         memdepth: float = 10e3) -> np.ndarray:
         """
         Gets the waveform of a selection of channels
         :param list channels: List of channels
@@ -108,30 +155,23 @@ class USBScope:
             XREFerence = self.scope.query_ascii_values(":WAV:XREF?")[0]
             # X INC for wav data
             XINCrement = self.scope.query_ascii_values(":WAV:XINC?")[0]
-            # Get time base to calculate memory depth.
-            time_base = self.scope.query_ascii_values(":TIM:SCAL?")[0]
-            # Calculate memory depth for later use.
-            # memory_depth = (time_base*12) * self.sample_rate
             memory_depth = self.scope.query_ascii_values(":ACQuire:MDEPth?")[0]
-
             # Set the waveform reading mode to RAW.
             self.scope.write(":WAV:MODE RAW")
             # Set return format to Byte.
             self.scope.write(":WAV:FORM BYTE")
-
             # Set waveform read start to 0.
             self.scope.write(":WAV:STAR 1")
-            if memory_depth > 250000:
+            if (memory_depth > 250000):
                 # Set waveform read stop to 250000.
                 self.scope.write(":WAV:STOP 250000")
             else:
-                self.scope.write(f":WAV:STOP {memory_depth}")
-
+                self.scope.write(f":WAV:STOP {int(memory_depth)}")
             # Read data from the scope, excluding the first 9 bytes
             # (TMC header).
             rawdata = self.scope.query_binary_values(":WAV:DATA?",
                                                      datatype='B')
-
+            print(len(rawdata))
             # Check if memory depth is bigger than the first data extraction.
             if (memory_depth > 250000):
                 loopcount = 1
@@ -142,13 +182,13 @@ class USBScope:
                     # Calculate the next start of the waveform in the internal
                     # memory.
                     start = (loopcount*250000)+1
-                    self.scope.write(":WAV:STAR {0}".format(start))
+                    self.scope.write(f":WAV:STAR {start}")
                     # Calculate the next stop of the waveform in the internal
                     # memory
                     stop = (loopcount+1)*250000
                     if plot:
                         print(stop)
-                    self.scope.write(":WAV:STOP {0}".format(stop))
+                    self.scope.write(f":WAV:STOP {stop}")
                     # Extent the rawdata variables with the new values.
                     rawdata.extend(self.scope.query_binary_values(":WAV:DATA?",
                                    datatype='B'))
@@ -158,34 +198,74 @@ class USBScope:
             # Calcualte data size for generating time axis
             data_size = len(data)
             # Create time axis
-            time = np.linspace(XREFerence, XINCrement*data_size, data_size)
-            Time.append(time)
+            times = np.linspace(XREFerence, XINCrement*data_size, data_size)
+            Time.append(times)
             if plot:
                 leg.append(f"Channel {chan}")
                 # See if we should use a different time axis
-                if (time[-1] < 1e-3):
-                    time = time * 1e6
+                if (times[-1] < 1e-3):
+                    times *= 1e6
                     tUnit = "uS"
-                elif (time[-1] < 1):
-                    time = time * 1e3
+                elif (times[-1] < 1):
+                    times *= 1e3
                     tUnit = "mS"
                 else:
                     tUnit = "S"
                 # Graph data with pyplot.
-                ax.plot(time, data)
+                ax.plot(times, data)
                 ax.set_ylabel("Voltage (V)")
                 ax.set_xlabel("Time (" + tUnit + ")")
-                ax.set_xlim(time[0], time[-1])
+                ax.set_xlim(times[0], times[-1])
         if plot:
             ax.legend(leg)
             plt.show()
         self.scope.write(":RUN")
         Data = np.asarray(Data)
         Time = np.asarray(Time)
-        if len(channels)==1:
+        if len(channels) == 1:
             Data = Data[0, :]
             Time = Time[0, :]
         return Data, Time
+
+    def get_waveform(self, channels: list = [1], plot: bool = False) -> np.ndarray:
+        Data = []
+        Time = []
+        if plot:
+            fig, ax = plt.subplots()
+            leg = []
+        for chan in channels:
+            self.scope.write(f':WAV:SOUR CHAN{chan}')
+            self.scope.write(':WAV:MODE NORM')
+            self.scope.write(':WAV:FORM BYTE')
+            preamble = _Preamble(self.scope.query(':WAV:PRE?'))
+            # self.scope.write(':WAV:BEG')
+            raw_values = self.scope.query_binary_values(':WAV:DATA?', datatype='B',
+                                                        container=np.array)
+            data = preamble.normalize(raw_values)
+            times = np.linspace(
+                preamble.x_orig, preamble.x_inc*len(data), len(data))
+            Data.append(data)
+            Time.append(times)
+            # self.scope.write(':RUN')
+            if plot:
+                leg.append(f"Channel {chan}")
+                if (times[-1] < 1e-3):
+                    times *= 1e6
+                    tUnit = "uS"
+                elif (times[-1] < 1):
+                    times *= 1e3
+                    tUnit = "mS"
+                else:
+                    tUnit = "S"
+                # Graph data with pyplot.
+                ax.plot(times, data)
+                ax.set_ylabel("Voltage (V)")
+                ax.set_xlabel("Time (" + tUnit + ")")
+                ax.set_xlim(times[0], times[-1])
+        if plot:
+            ax.legend(leg)
+            plt.show()
+        return Time, Data
 
     def set_xref(self, ref: float):
         """
@@ -218,7 +298,7 @@ class USBScope:
 
     def measurement(self, channels: list = [1],
                     res: list = None):
-        if list is not(None) and len(list) == 2:
+        if list is not (None) and len(list) == 2:
             self.xres = self.set_xres(res[0])
             self.yres = self.set_yres(res[1])
         Data, Time = self.get_waveform(channels=channels)
@@ -297,7 +377,7 @@ class USBSpectrumAnalyzer:
                 print("ERROR : Could not connect to specified device")
 
     def zero_span(self, center: float = 1e6, rbw: int = 100,
-                  vbw: int = 30, swt: float = 100e-6, trig: bool = None):
+                  vbw: int = 30, swt: float = 'auto', trig: bool = None):
         """Zero span measurement.
         :param float center: Center frequency in Hz, converted to int
         :param float rbw: Resolution bandwidth
@@ -321,10 +401,10 @@ class USBSpectrumAnalyzer:
         if trig is not None:
             trigstate = self.sa.query(':TRIGger:SEQuence:SOURce?')
             istrigged = trigstate != 'IMM'
-            if trig and not(istrigged):
+            if trig and not (istrigged):
                 self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
                 self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
-            elif not(trig) and istrigged:
+            elif not (trig) and istrigged:
                 self.sa.write(':TRIGger:SEQuence:SOURce IMMediate')
         self.sa.write(':CONFigure:ACPower')
         self.sa.write(':TPOWer:LLIMit 0')
@@ -332,12 +412,54 @@ class USBSpectrumAnalyzer:
         self.sa.write(':FORMat:TRACe:DATA ASCii')
         # if specAn was trigged before, put it back in the same state
         if trig is not None:
-            if not(trig) and istrigged:
+            if not (trig) and istrigged:
                 self.sa.write(f":TRIGger:SEQuence:SOURce {trigstate}")
         data = self.query_data()
         sweeptime = float(self.sa.query(':SWEep:TIME?'))
         time = np.linspace(0, sweeptime, len(data))
         return data, time
+
+    def span(self, center: float = 22.5e6, span: float = 45e6, rbw: int = 100,
+             vbw: int = 30, swt: float = 'auto', trig: bool = None):
+        """Arbitrary span measurement.
+        :param float center: Center frequency in Hz
+        :param float span: span
+        :param float rbw: Resolution bandwidth
+        :param float vbw: Video bandwidth
+        :param float swt: Total measurement time
+        :param bool trig: External trigger
+        :return: data, freqs for data and frequencies
+        :rtype: np.ndarray
+
+        """
+        self.sa.write(f':FREQuency:SPAN {span}')
+        self.sa.write(f':FREQuency:CENTer {center}')
+        self.sa.write(f':BANDwidth:RESolution {int(rbw)}')
+        self.sa.write(f':BANDwidth:VIDeo {int(vbw)}')
+        if swt != 'auto':
+            self.sa.write(f':SENSe:SWEep:TIME {swt}')  # in s.
+        else:
+            self.sa.write(':SENSe:SWEep:TIME:AUTO ON')
+        self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOGarithmic')
+        # self.sa.write(':POWer:ASCale')
+        if trig is not None:
+            trigstate = self.sa.query(':TRIGger:SEQuence:SOURce?')
+            istrigged = trigstate != 'IMM'
+            if trig and not (istrigged):
+                self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
+                self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
+            elif not (trig) and istrigged:
+                self.sa.write(':TRIGger:SEQuence:SOURce IMMediate')
+        self.sa.write(':CONFigure:ACPower')
+        self.sa.write(':FORMat:TRACe:DATA ASCii')
+        # if specAn was trigged before, put it back in the same state
+        if trig is not None:
+            if not (trig) and istrigged:
+                self.sa.write(f":TRIGger:SEQuence:SOURce {trigstate}")
+        data = self.query_data()
+        # sweeptime = float(self.sa.query(':SWEep:TIME?'))
+        freqs = np.linspace(center-span//2, center+span//2, len(data))
+        return data, freqs
 
     def query_data(self):
         """Lower level function to grab the data from the SpecAnalyzer
@@ -406,7 +528,11 @@ class USBArbitraryFG:
                 print(f"Connected to {self.afg.query('*IDN?')}")
             except Exception:
                 print("ERROR : Could not connect to specified device")
-        self.afg.write(":STOP")
+
+        if self.afg.query("OUTPut1?")[:-1] == "ON":
+            self.afg.write("OUTPut1 OFF")
+        if self.afg.query("OUTPut2?")[:-1] == "ON":
+            self.afg.write("OUTPut2 OFF")
 
     def get_waveform(self, output: int = 1) -> list:
         """
@@ -422,18 +548,12 @@ class USBArbitraryFG:
         ison = self.afg.query(f"OUTPut{output}?")[:-1] == "ON"
         ret = self.afg.query(f"SOURce{output}:APPLy?")
         ret = ret[1:-2].split(",")
-        typ = ret[0]
-        if typ=='DC':
-            offset = float(ret[3])
-            freq = 0
-            amp = 0
-            phase = 0
-        else:
-            freq = float(ret[1])
-            amp = float(ret[2])
-            offset = float(ret[3])
-            phase = float(ret[4])
-        return [ison, typ, freq, amp, offset, phase]
+        type = ret[0]
+        freq = float(ret[1])
+        amp = float(ret[2])
+        offset = float(ret[3])
+        phase = float(ret[4])
+        return [ison, type, freq, amp, offset, phase]
 
     def turn_on(self, output: int = 1):
         """
@@ -461,7 +581,8 @@ class USBArbitraryFG:
         if output not in [1, 2]:
             print("ERROR : Invalid output specified")
             return None
-        self.afg.write(f":SOURce{output}:APPLy:DC 0,0,{offset}")
+        self.afg.write(f":SOURce{output}:FUNCtion DC")
+        self.afg.write(f":SOURce{output}:APPLy:USER 1, 1, {offset}, 0")
         self.turn_on(output)
 
     def sine(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
@@ -607,11 +728,10 @@ class USBArbitraryFG:
         if function not in funcnames:
             print("ERROR : Unknwown function specified")
             pass
+        self.afg.write(f":SOURce{output}:FUNCtion {function}")
         self.afg.write(f":SOURce{output}:APPLy:USER {freq}, {ampl}, " +
                        f"{offset}, {phase}")
-        self.afg.write(f":SOURce{output}:FUNCtion {function}")
         self.turn_on(output)
 
     def close(self):
         self.afg.close()
-
