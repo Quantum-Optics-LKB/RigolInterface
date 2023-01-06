@@ -45,8 +45,8 @@ class USBScope:
                         print(f"{dev} : {counter} (" +
                               f"{instr.query('*IDN?')})")
                         instr.close()
-                    except Exception:
-                        print(f"Could not open device : {Exception}")
+                    except:
+                        print("Could not open device :'(")
                 answer = input("\n Choice (number between 0 and " +
                                f"{len(usb)-1}) ? ")
                 answer = int(answer)
@@ -179,7 +179,7 @@ class USBScope:
         self.scope.write(":RUN")
         Data = np.asarray(Data)
         Time = np.asarray(Time)
-        if len(channels)==1:
+        if len(channels) == 1:
             Data = Data[0, :]
             Time = Time[0, :]
         return Data, Time
@@ -215,7 +215,7 @@ class USBScope:
 
     def measurement(self, channels: list = [1],
                     res: list = None):
-        if list is not(None) and len(list) == 2:
+        if list is not (None) and len(list) == 2:
             self.xres = self.set_xres(res[0])
             self.yres = self.set_yres(res[1])
         Data, Time = self.get_waveform(channels=channels)
@@ -294,7 +294,7 @@ class USBSpectrumAnalyzer:
                 print("ERROR : Could not connect to specified device")
 
     def zero_span(self, center: float = 1e6, rbw: int = 100,
-                  vbw: int = 30, swt: float = 'auto', trig: bool = None):
+                  vbw: int = 30, swt: float = 100e-6, trig: bool = None):
         """Zero span measurement.
         :param float center: Center frequency in Hz, converted to int
         :param float rbw: Resolution bandwidth
@@ -318,10 +318,10 @@ class USBSpectrumAnalyzer:
         if trig is not None:
             trigstate = self.sa.query(':TRIGger:SEQuence:SOURce?')
             istrigged = trigstate != 'IMM'
-            if trig and not(istrigged):
+            if trig and not (istrigged):
                 self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
                 self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
-            elif not(trig) and istrigged:
+            elif not (trig) and istrigged:
                 self.sa.write(':TRIGger:SEQuence:SOURce IMMediate')
         self.sa.write(':CONFigure:ACPower')
         self.sa.write(':TPOWer:LLIMit 0')
@@ -329,54 +329,12 @@ class USBSpectrumAnalyzer:
         self.sa.write(':FORMat:TRACe:DATA ASCii')
         # if specAn was trigged before, put it back in the same state
         if trig is not None:
-            if not(trig) and istrigged:
+            if not (trig) and istrigged:
                 self.sa.write(f":TRIGger:SEQuence:SOURce {trigstate}")
         data = self.query_data()
         sweeptime = float(self.sa.query(':SWEep:TIME?'))
         time = np.linspace(0, sweeptime, len(data))
         return data, time
-
-    def span(self, center: float = 22.5e6, span: float = 45e6, rbw: int = 100,
-             vbw: int = 30, swt: float = 'auto', trig: bool = None):
-        """Arbitrary span measurement.
-        :param float center: Center frequency in Hz
-        :param float span: span
-        :param float rbw: Resolution bandwidth
-        :param float vbw: Video bandwidth
-        :param float swt: Total measurement time
-        :param bool trig: External trigger
-        :return: data, freqs for data and frequencies
-        :rtype: np.ndarray
-
-        """
-        self.sa.write(f':FREQuency:SPAN {span}')
-        self.sa.write(f':FREQuency:CENTer {center}')
-        self.sa.write(f':BANDwidth:RESolution {int(rbw)}')
-        self.sa.write(f':BANDwidth:VIDeo {int(vbw)}')
-        if swt != 'auto':
-            self.sa.write(f':SENSe:SWEep:TIME {swt}')  # in s.
-        else:
-            self.sa.write(':SENSe:SWEep:TIME:AUTO ON')
-        self.sa.write(':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOGarithmic')
-        # self.sa.write(':POWer:ASCale')
-        if trig is not None:
-            trigstate = self.sa.query(':TRIGger:SEQuence:SOURce?')
-            istrigged = trigstate != 'IMM'
-            if trig and not(istrigged):
-                self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
-                self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
-            elif not(trig) and istrigged:
-                self.sa.write(':TRIGger:SEQuence:SOURce IMMediate')
-        self.sa.write(':CONFigure:ACPower')
-        self.sa.write(':FORMat:TRACe:DATA ASCii')
-        # if specAn was trigged before, put it back in the same state
-        if trig is not None:
-            if not(trig) and istrigged:
-                self.sa.write(f":TRIGger:SEQuence:SOURce {trigstate}")
-        data = self.query_data()
-        # sweeptime = float(self.sa.query(':SWEep:TIME?'))
-        freqs = np.linspace(center-span//2, center+span//2, len(data))
-        return data, freqs
 
     def query_data(self):
         """Lower level function to grab the data from the SpecAnalyzer
@@ -445,19 +403,15 @@ class USBArbitraryFG:
                 print(f"Connected to {self.afg.query('*IDN?')}")
             except Exception:
                 print("ERROR : Could not connect to specified device")
+        self.afg.write(":STOP")
 
-        if self.afg.query("OUTPut1?")[:-1] == "ON":
-            self.afg.write("OUTPut1 OFF")
-        if self.afg.query("OUTPut2?")[:-1] == "ON":
-            self.afg.write("OUTPut2 OFF")
-
-
-    def get_waveform(self, output: int = 1) -> list:
+    def get_waveform(self, output: int = 1) -> [bool, str, float, float, float,
+                                                float]:
         """
         Gets the waveform type as well as its specs
         :param int output: Description of parameter `output`.
         :return: List containing all the parameters
-        :rtype: list
+        :rtype: list [ison, typ, freq, amp, offset, phase]
 
         """
         if output not in [1, 2]:
@@ -466,12 +420,18 @@ class USBArbitraryFG:
         ison = self.afg.query(f"OUTPut{output}?")[:-1] == "ON"
         ret = self.afg.query(f"SOURce{output}:APPLy?")
         ret = ret[1:-2].split(",")
-        type = ret[0]
-        freq = float(ret[1])
-        amp = float(ret[2])
-        offset = float(ret[3])
-        phase = float(ret[4])
-        return [ison, type, freq, amp, offset, phase]
+        typ = ret[0]
+        if typ == 'DC':
+            offset = float(ret[3])
+            freq = 0
+            amp = 0
+            phase = 0
+        else:
+            freq = float(ret[1])
+            amp = float(ret[2])
+            offset = float(ret[3])
+            phase = float(ret[4])
+        return [ison, typ, freq, amp, offset, phase]
 
     def turn_on(self, output: int = 1):
         """
@@ -499,8 +459,7 @@ class USBArbitraryFG:
         if output not in [1, 2]:
             print("ERROR : Invalid output specified")
             return None
-        self.afg.write(f":SOURce{output}:FUNCtion DC")
-        self.afg.write(f":SOURce{output}:APPLy:USER 1, 1, {offset}, 0")
+        self.afg.write(f":SOURce{output}:APPLy:DC {offset}")
         self.turn_on(output)
 
     def sine(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
@@ -646,9 +605,9 @@ class USBArbitraryFG:
         if function not in funcnames:
             print("ERROR : Unknwown function specified")
             pass
-        self.afg.write(f":SOURce{output}:FUNCtion {function}")
         self.afg.write(f":SOURce{output}:APPLy:USER {freq}, {ampl}, " +
                        f"{offset}, {phase}")
+        self.afg.write(f":SOURce{output}:FUNCtion {function}")
         self.turn_on(output)
 
     def close(self):
