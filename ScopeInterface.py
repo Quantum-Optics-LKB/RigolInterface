@@ -121,8 +121,11 @@ class USBScope:
 
             # Set waveform read start to 0.
             self.scope.write(":WAV:STAR 1")
-            # Set waveform read stop to 250000.
-            self.scope.write(":WAV:STOP 250000")
+            if memory_depth > 250000:
+                # Set waveform read stop to 250000.
+                self.scope.write(":WAV:STOP 250000")
+            else:
+                self.scope.write(f":WAV:STOP {memory_depth}")
 
             # Read data from the scope, excluding the first 9 bytes
             # (TMC header).
@@ -179,7 +182,7 @@ class USBScope:
         self.scope.write(":RUN")
         Data = np.asarray(Data)
         Time = np.asarray(Time)
-        if len(channels) == 1:
+        if len(channels)==1:
             Data = Data[0, :]
             Time = Time[0, :]
         return Data, Time
@@ -215,7 +218,7 @@ class USBScope:
 
     def measurement(self, channels: list = [1],
                     res: list = None):
-        if list is not (None) and len(list) == 2:
+        if list is not(None) and len(list) == 2:
             self.xres = self.set_xres(res[0])
             self.yres = self.set_yres(res[1])
         Data, Time = self.get_waveform(channels=channels)
@@ -318,10 +321,10 @@ class USBSpectrumAnalyzer:
         if trig is not None:
             trigstate = self.sa.query(':TRIGger:SEQuence:SOURce?')
             istrigged = trigstate != 'IMM'
-            if trig and not (istrigged):
+            if trig and not(istrigged):
                 self.sa.write(':TRIGger:SEQuence:SOURce EXTernal')
                 self.sa.write(':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
-            elif not (trig) and istrigged:
+            elif not(trig) and istrigged:
                 self.sa.write(':TRIGger:SEQuence:SOURce IMMediate')
         self.sa.write(':CONFigure:ACPower')
         self.sa.write(':TPOWer:LLIMit 0')
@@ -329,7 +332,7 @@ class USBSpectrumAnalyzer:
         self.sa.write(':FORMat:TRACe:DATA ASCii')
         # if specAn was trigged before, put it back in the same state
         if trig is not None:
-            if not (trig) and istrigged:
+            if not(trig) and istrigged:
                 self.sa.write(f":TRIGger:SEQuence:SOURce {trigstate}")
         data = self.query_data()
         sweeptime = float(self.sa.query(':SWEep:TIME?'))
@@ -405,13 +408,12 @@ class USBArbitraryFG:
                 print("ERROR : Could not connect to specified device")
         self.afg.write(":STOP")
 
-    def get_waveform(self, output: int = 1) -> [bool, str, float, float, float,
-                                                float]:
+    def get_waveform(self, output: int = 1) -> list:
         """
         Gets the waveform type as well as its specs
         :param int output: Description of parameter `output`.
         :return: List containing all the parameters
-        :rtype: list [ison, typ, freq, amp, offset, phase]
+        :rtype: list
 
         """
         if output not in [1, 2]:
@@ -421,7 +423,7 @@ class USBArbitraryFG:
         ret = self.afg.query(f"SOURce{output}:APPLy?")
         ret = ret[1:-2].split(",")
         typ = ret[0]
-        if typ == 'DC':
+        if typ=='DC':
             offset = float(ret[3])
             freq = 0
             amp = 0
@@ -459,7 +461,7 @@ class USBArbitraryFG:
         if output not in [1, 2]:
             print("ERROR : Invalid output specified")
             return None
-        self.afg.write(f":SOURce{output}:APPLy:DC {offset}")
+        self.afg.write(f":SOURce{output}:APPLy:DC 0,0,{offset}")
         self.turn_on(output)
 
     def sine(self, output: int = 1, freq: float = 100.0, ampl: float = 2.0,
@@ -612,3 +614,4 @@ class USBArbitraryFG:
 
     def close(self):
         self.afg.close()
+
