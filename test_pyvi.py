@@ -6,10 +6,10 @@ import math
 rm = visa.ResourceManager('@py')
 
 instruments = rm.list_resources()
-
+print(instruments)
 usb = list(filter(lambda x: 'USB' in x, instruments))
 if (len(usb) != 1):
-    print ('Bad instrument list', instruments)
+    print('Bad instrument list', instruments)
     sys.exit(-1)
 
 scope = rm.open_resource(usb[0])
@@ -17,7 +17,7 @@ scope = rm.open_resource(usb[0])
 # oscilloscope.query("*RST")
 scope.write(":STOP")
 
-#### This is the part that extracts the waveform from the scope.
+# This is the part that extracts the waveform from the scope.
 # Query the sample rate
 sample_rate = scope.query_ascii_values(':ACQ:SRAT?')[0]
 # Select CH1
@@ -57,23 +57,23 @@ rawdata = scope.query_binary_values(":WAV:DATA?", datatype='B')
 
 # Check if memory depth is bigger than the first data extraction.
 if (memory_depth > 250000):
-	loopcount = 1
-	# Find the maximum number of loops required to loop through all memory.
-	loopmax = math.ceil(memory_depth/250000)
-	while (loopcount < loopmax):
-		# Calculate the next start of the waveform in the internal memory.
-		start = (loopcount*250000)+1
-		scope.write(":WAV:STAR {0}".format(start))
-		# Calculate the next stop of the waveform in the internal memory
-		stop = (loopcount+1)*250000
-		print(stop)
-		scope.write(":WAV:STOP {0}".format(stop))
-		# Extent the rawdata variables with the new values.
-		rawdata.extend(scope.query_binary_values(":WAV:DATA?", datatype='B'))
-		loopcount = loopcount+1
+    loopcount = 1
+    # Find the maximum number of loops required to loop through all memory.
+    loopmax = math.ceil(memory_depth/250000)
+    while (loopcount < loopmax):
+        # Calculate the next start of the waveform in the internal memory.
+        start = (loopcount*250000)+1
+        scope.write(":WAV:STAR {0}".format(start))
+        # Calculate the next stop of the waveform in the internal memory
+        stop = (loopcount+1)*250000
+        print(stop)
+        scope.write(":WAV:STOP {0}".format(stop))
+        # Extent the rawdata variables with the new values.
+        rawdata.extend(scope.query_binary_values(":WAV:DATA?", datatype='B'))
+        loopcount = loopcount+1
 
 
-#### This is the part that extracts the measurements from the scope.
+# This is the part that extracts the measurements from the scope.
 # Measure on channel 1.
 scope.write(":MEAS:SOUR CHAN1")
 # Grab VMAX
@@ -84,9 +84,9 @@ v_rms = scope.query_ascii_values(":MEAS:ITEM? VRMS")
 v_avg = scope.query_ascii_values(":MEAS:ITEM? VAVG")
 freq = scope.query_ascii_values(":MEAS:ITEM? FREQ")
 
-#print ('Vmax: {0}\nVmin: {1}\nVpp: {2}\nVrms: {3}\nVavg: {4}\nFreq: {5}'.format(v_max[0],v_min[0],v_pp[0],v_rms[0],v_avg[0],freq[0]))
+# print ('Vmax: {0}\nVmin: {1}\nVpp: {2}\nVrms: {3}\nVavg: {4}\nFreq: {5}'.format(v_max[0],v_min[0],v_pp[0],v_rms[0],v_avg[0],freq[0]))
 
-#### This is the part that handles all the data and presents it nicely.
+# This is the part that handles all the data and presents it nicely.
 # Close connection to scope.
 scope.close()
 
@@ -105,19 +105,22 @@ elif (time[-1] < 1):
     time = time * 1e3
     tUnit = "mS"
 else:
-	tUnit = "S"
+    tUnit = "S"
 
 # Inform about the data size, sample rate and scope setings. Mostly used for debugging.
-print ('Data size:', data_size, "Sample rate:", sample_rate)
-print ('YORigin:', YORigin, 'YREFerence:', YREFerence, 'YINCrement:', YINCrement)
-print ('XORigin:', XORigin, 'XREFerence:', XREFerence, 'XINCrement:', XINCrement)
+print('Data size:', data_size, "Sample rate:", sample_rate)
+print('YORigin:', YORigin, 'YREFerence:',
+      YREFerence, 'YINCrement:', YINCrement)
+print('XORigin:', XORigin, 'XREFerence:',
+      XREFerence, 'XINCrement:', XINCrement)
 
 # Graph data with pyplot.
 plot.plot(time, data)
-#plot.title("Oscilloscope Channel 1")
+# plot.title("Oscilloscope Channel 1")
 plot.ylabel("Voltage (V)")
 plot.xlabel("Time (" + tUnit + ")")
 plot.xlim(time[0], time[-1])
-plot.subplots_adjust(left=0.1,top=0.98,bottom=0.1,right=0.8)
-plot.text(0.81, 0.5, 'Vmax: {0}V\nVmin: {1}V\nVpp: {2}V\nVrms: {3}V\nVavg: {4}V\nFreq: {5}Hz'.format(v_max[0],v_min[0],v_pp[0],v_rms[0],v_avg[0],freq[0]), style='italic', bbox={'facecolor':'white', 'alpha':0.1, 'pad':0},transform=plot.gcf().transFigure)
+plot.subplots_adjust(left=0.1, top=0.98, bottom=0.1, right=0.8)
+plot.text(0.81, 0.5, 'Vmax: {0}V\nVmin: {1}V\nVpp: {2}V\nVrms: {3}V\nVavg: {4}V\nFreq: {5}Hz'.format(
+    v_max[0], v_min[0], v_pp[0], v_rms[0], v_avg[0], freq[0]), style='italic', bbox={'facecolor': 'white', 'alpha': 0.1, 'pad': 0}, transform=plot.gcf().transFigure)
 plot.show()
