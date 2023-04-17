@@ -265,7 +265,12 @@ class USBScope:
         if plot:
             ax.legend(leg)
             plt.show()
-        return Time, Data
+        Data = np.asarray(Data)
+        Time = np.asarray(Time)
+        if len(channels) == 1:
+            Data = Data[0, :]
+            Time = Time[0, :]
+        return Data, Time
 
     def set_xref(self, ref: float):
         """
