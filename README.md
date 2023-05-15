@@ -21,7 +21,7 @@ scope = USBScope()
 scope.get_waveform(channels = [1],plot=True)
 scope.close()
 ```
-[!toto](device_choice.png)
+[toto](device_choice.png)
 This will yield the resulting plot:
 
-[!tototo](plot.png)
+[tototo](plot.png)
