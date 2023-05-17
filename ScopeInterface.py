@@ -114,13 +114,15 @@ class USBScope:
         self.sample_rate = float(self.scope.query(':ACQuire:SRATe?'))
         self.scope.write(":RUN")
 
-    def get_waveform_old(self, channels: list = [1], plot: bool = False,
-                         memdepth: float = 10e3) -> np.ndarray:
+    def get_waveform_raw(self, channels: list = [1], plot: bool = False,
+                         memdepth: float = None) -> np.ndarray:
         """
         Gets the waveform of a selection of channels
         :param list channels: List of channels
         :param bool plot: Will plot the traces
-        :param float memdepth: Memory depth (number of points)
+        :param float memdepth: Memory depth (number of points) defaults to 
+        None
+        (does not modify)
         :returns: Data, Time np.ndarrays containing the traces of shape
         (channels, nbr of points) if len(channels)>1
         """
@@ -139,7 +141,8 @@ class USBScope:
                 print("ERROR : Invalid channel list provided" +
                       " (Channels are 1,2,3,4)")
                 sys.exit()
-        self.scope.write(f":ACQuire:MDEPth {int(memdepth)}")
+        if memdepth is not None:
+            self.scope.write(f":ACQuire:MDEPth {int(memdepth)}")
         self.scope.write(":STOP")
         # Select channels
         for chan in channels:
@@ -227,16 +230,36 @@ class USBScope:
             Time = Time[0, :]
         return Data, Time
 
-    def get_waveform(self, channels: list = [1], plot: bool = False) -> np.ndarray:
+    def get_waveform(self, channels: list = [1], plot: bool = False,
+                     fine: bool = True) -> np.ndarray:
+        """Retrieves the displayed waveform
+
+        Args:
+            channels (list, optional): List of channels. Defaults to [1].
+            plot (bool, optional): Whether to plot the result. Defaults to False.
+            fine (bool, optional): If True, will stop the scope 
+            and read the full trace. Defaults to False.
+
+        Returns:
+            np.ndarray: Data, Time
+        """
         Data = []
         Time = []
+        memory_depth = int(self.scope.query_ascii_values(":ACQuire:MDEPth?")[0])
+        if memory_depth > 250000:
+            return self.get_waveform_raw(channels=channels, plot=plot)
         if plot:
             fig, ax = plt.subplots()
             leg = []
+        if fine:
+            self.scope.write(":STOP")
         for chan in channels:
             self.scope.write(f':WAV:SOUR CHAN{chan}')
-            self.scope.write(':WAV:MODE NORM')
+            self.scope.write(':WAV:MODE MAX')
             self.scope.write(':WAV:FORM BYTE')
+            if fine:
+                self.scope.write("WAV:START 1")
+                self.scope.write(f"WAV:STOP {memory_depth}")
             preamble = _Preamble(self.scope.query(':WAV:PRE?'))
             # self.scope.write(':WAV:BEG')
             raw_values = self.scope.query_binary_values(':WAV:DATA?', datatype='B',
@@ -262,15 +285,12 @@ class USBScope:
                 ax.set_ylabel("Voltage (V)")
                 ax.set_xlabel("Time (" + tUnit + ")")
                 ax.set_xlim(times[0], times[-1])
+        if fine:
+            self.scope.write(":RUN")
         if plot:
             ax.legend(leg)
             plt.show()
-        Data = np.asarray(Data)
-        Time = np.asarray(Time)
-        if len(channels) == 1:
-            Data = Data[0, :]
-            Time = Time[0, :]
-        return Data, Time
+        return Time, Data
 
     def set_xref(self, ref: float):
         """
