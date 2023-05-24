@@ -18,36 +18,15 @@ import pyvisa as visa
 
 plt.ioff()
 
-
-_PSEC_PER_SEC = pow(10, 12)
-
-
-def _parse_time(s):
-    (man, _, exp) = s.partition('e')
-    exp = int(exp)
-    (intg, _, frac) = man.partition('.')
-    intg = int(intg) * _PSEC_PER_SEC
-    frac_digits = len(frac)
-    frac = int(frac)
-    if intg < 0:
-        frac *= -1
-    intg += frac * pow(10, 11 - (frac_digits - 1))
-    if exp > 0:
-        intg *= pow(10, exp)
-    elif exp < 0:
-        intg //= pow(10, abs(exp))
-    return
-
-
 class _Preamble:
     def __init__(self, s):
         elems = s.split(',')
+        self.elems = elems
         self.points = int(elems[2])
         self.count = int(elems[3])
-        self.x_inc_str = elems[4]
         self.x_inc = float(elems[4])
-        self.x_orig_str = elems[5]
         self.x_orig = float(elems[5])
+        self.x_ref = float(elems[6])
         self.y_inc = float(elems[7])
         self.y_orig = int(elems[8])
         self.y_ref = int(elems[9])
@@ -59,10 +38,11 @@ class _Preamble:
         return yvals
 
     def x_values(self):
-        origin = _parse_time(self.x_orig_str)
-        step = _parse_time(self.x_inc_str)
-        stop = origin + step * self.points
-        return np.arange(origin, stop, step)
+        xvals = np.linspace(0, self.points-1, self.points)
+        xvals *= self.x_inc
+        xvals += self.x_ref
+        # xvals += self.x_orig
+        return xvals
 
 
 class USBScope:
@@ -77,7 +57,7 @@ class USBScope:
         if addr is None:
             instruments = self.rm.list_resources()
             # usb = list(filter(lambda x: 'USB' in x, instruments))
-            usb = list(filter(lambda x: 'ASRL1' not in x, instruments))
+            usb = list(filter(lambda x: 'ASRL' not in x, instruments))
             # usb = instruments
             if len(usb) == 0:
                 print('Could not find any device !')
@@ -110,12 +90,10 @@ class USBScope:
                 print("ERROR : Could not connect to specified device")
 
         # Get one waveform to retrieve metrics
-        self.scope.write(":STOP")
-        self.sample_rate = float(self.scope.query(':ACQuire:SRATe?'))
-        self.scope.write(":RUN")
+        self.sample_rate = float(self.scope.query_ascii_values(':ACQuire:SRATe?')[0])
 
     def get_waveform_raw(self, channels: list = [1], plot: bool = False,
-                         memdepth: float = None) -> np.ndarray:
+                         memdepth: float = None,) -> np.ndarray:
         """
         Gets the waveform of a selection of channels
         :param list channels: List of channels
@@ -158,7 +136,7 @@ class USBScope:
             XREFerence = self.scope.query_ascii_values(":WAV:XREF?")[0]
             # X INC for wav data
             XINCrement = self.scope.query_ascii_values(":WAV:XINC?")[0]
-            memory_depth = self.scope.query_ascii_values(":ACQuire:MDEPth?")[0]
+            memory_depth = int(self.scope.query_ascii_values(":ACQuire:MDEPth?")[0])
             # Set the waveform reading mode to RAW.
             self.scope.write(":WAV:MODE RAW")
             # Set return format to Byte.
@@ -174,14 +152,13 @@ class USBScope:
             # (TMC header).
             rawdata = self.scope.query_binary_values(":WAV:DATA?",
                                                      datatype='B')
-            print(len(rawdata))
+            sys.stdout.write(f"\rReading {len(rawdata)}/{memory_depth}")
             # Check if memory depth is bigger than the first data extraction.
             if (memory_depth > 250000):
-                loopcount = 1
                 # Find the maximum number of loops required to loop through all
                 # memory.
-                loopmax = np.ceil(memory_depth/250000)
-                while (loopcount < loopmax):
+                loopmax = int(np.ceil(memory_depth/250000))
+                for  loopcount in range(1, loopmax):
                     # Calculate the next start of the waveform in the internal
                     # memory.
                     start = (loopcount*250000)+1
@@ -189,16 +166,15 @@ class USBScope:
                     # Calculate the next stop of the waveform in the internal
                     # memory
                     stop = (loopcount+1)*250000
-                    if plot:
-                        print(stop)
+                    sys.stdout.write(f"\rReading {stop}/{memory_depth}")
                     self.scope.write(f":WAV:STOP {stop}")
                     # Extent the rawdata variables with the new values.
                     rawdata.extend(self.scope.query_binary_values(":WAV:DATA?",
                                    datatype='B'))
-                    loopcount = loopcount+1
+            print()
             data = (np.asarray(rawdata) - YORigin - YREFerence) * YINCrement
             Data.append(data)
-            # Calcualte data size for generating time axis
+            # Calculate data size for generating time axis
             data_size = len(data)
             # Create time axis
             times = np.linspace(XREFerence, XINCrement*data_size, data_size)
@@ -219,10 +195,10 @@ class USBScope:
                 ax.set_ylabel("Voltage (V)")
                 ax.set_xlabel("Time (" + tUnit + ")")
                 ax.set_xlim(times[0], times[-1])
+        self.scope.write(":RUN")
         if plot:
             ax.legend(leg)
             plt.show()
-        self.scope.write(":RUN")
         Data = np.asarray(Data)
         Time = np.asarray(Time)
         if len(channels) == 1:
@@ -231,14 +207,19 @@ class USBScope:
         return Data, Time
 
     def get_waveform(self, channels: list = [1], plot: bool = False,
-                     fine: bool = True) -> np.ndarray:
-        """Retrieves the displayed waveform
+                     ndivs: int = 10) -> np.ndarray:
+        """Retrieves the displayed waveform.
+        From the displayed time scale and the sampling rate, will compute how many
+        points of the memory correspond to the displayed signal.
+        It will then retrieve the displayed signal (the part delimited by the 
+        shaded area on top of the screen).
+        See the :WAVeform Commands documentation for futher details.
 
         Args:
             channels (list, optional): List of channels. Defaults to [1].
             plot (bool, optional): Whether to plot the result. Defaults to False.
-            fine (bool, optional): If True, will stop the scope 
-            and read the full trace. Defaults to False.
+            ndivs (int, optional): The number of time divisions on the screen.
+              Defaults to 10.
 
         Returns:
             np.ndarray: Data, Time
@@ -246,32 +227,30 @@ class USBScope:
         Data = []
         Time = []
         memory_depth = int(self.scope.query_ascii_values(":ACQuire:MDEPth?")[0])
-        if memory_depth > 250000:
-            return self.get_waveform_raw(channels=channels, plot=plot)
+        time_scale = float(self.scope.query_ascii_values(":TIM:SCAL?")[0])
         if plot:
             fig, ax = plt.subplots()
-            leg = []
-        if fine:
-            self.scope.write(":STOP")
+        self.scope.write(":STOP")
         for chan in channels:
             self.scope.write(f':WAV:SOUR CHAN{chan}')
             self.scope.write(':WAV:MODE MAX')
             self.scope.write(':WAV:FORM BYTE')
-            if fine:
-                self.scope.write("WAV:START 1")
-                self.scope.write(f"WAV:STOP {memory_depth}")
             preamble = _Preamble(self.scope.query(':WAV:PRE?'))
-            # self.scope.write(':WAV:BEG')
-            raw_values = self.scope.query_binary_values(':WAV:DATA?', datatype='B',
-                                                        container=np.array)
-            data = preamble.normalize(raw_values)
-            times = np.linspace(
-                preamble.x_orig, preamble.x_inc*len(data), len(data))
+            print(f"{preamble.elems=}")
+            screen_points = np.floor(time_scale/preamble.x_inc)*ndivs
+            # we look for the middle of the memory and take what's displayed
+            # on the screen
+            self.scope.write(f"WAV:STAR {memory_depth//2 - screen_points//2+1}")
+            self.scope.write(f"WAV:STOP {memory_depth//2 + screen_points//2}")
+            data = self.scope.query_binary_values(':WAV:DATA?', datatype='B',
+                                                    container=np.array,
+                                                    delay=.5,
+                                                    data_points=screen_points)
+            data = preamble.normalize(data)
+            times = np.arange(0, len(data)*preamble.x_inc, preamble.x_inc)
             Data.append(data)
             Time.append(times)
-            # self.scope.write(':RUN')
             if plot:
-                leg.append(f"Channel {chan}")
                 if (times[-1] < 1e-3):
                     times *= 1e6
                     tUnit = "uS"
@@ -280,17 +259,15 @@ class USBScope:
                     tUnit = "mS"
                 else:
                     tUnit = "S"
-                # Graph data with pyplot.
-                ax.plot(times, data)
+                ax.plot(times, data, label=f"Channel {chan}")
                 ax.set_ylabel("Voltage (V)")
                 ax.set_xlabel("Time (" + tUnit + ")")
                 ax.set_xlim(times[0], times[-1])
-        if fine:
-            self.scope.write(":RUN")
+        self.scope.write(":RUN")
         if plot:
-            ax.legend(leg)
+            ax.legend()
             plt.show()
-        return Time, Data
+        return np.asarray(Time), np.asarray(Data)
 
     def set_xref(self, ref: float):
         """
