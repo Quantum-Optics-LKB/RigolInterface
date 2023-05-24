@@ -236,7 +236,6 @@ class USBScope:
             self.scope.write(':WAV:MODE MAX')
             self.scope.write(':WAV:FORM BYTE')
             preamble = _Preamble(self.scope.query(':WAV:PRE?'))
-            print(f"{preamble.elems=}")
             screen_points = np.floor(time_scale/preamble.x_inc)*ndivs
             # we look for the middle of the memory and take what's displayed
             # on the screen
