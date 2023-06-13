@@ -80,8 +80,7 @@ class USBScope:
                 self.scope = self.rm.open_resource(usb[answer])
             else:
                 self.scope = self.rm.open_resource(usb[0])
-                print(f"{self.scope.manufacturer_name}" +
-                      f", {self.scope.model_name}")
+                print(f"Connected to {self.scope.query('*IDN?')}")
         else:
             try:
                 self.scope = self.rm.open_resource(addr)
