@@ -30,7 +30,7 @@ This will yield a plot of the displayed signal:
 You can also choose to directly connect to the scope through its adress:
 
 ```þython
-from ScopeInterface import USBScope
+from RigolInterface import USBScope
 scope = USBScope('USB0::6833::1300::DS7F222900085::0::INSTR')  
 scope.get_waveform(channels = [1],plot=True)
 scope.close()
