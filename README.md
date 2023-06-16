@@ -1,5 +1,5 @@
-# RigolInterface
-Python interface for Rigol scopes. USB or TCPIP or anything.
+# ScopeInterface
+Python interface for oscilloscopes comminicating via SCPI commands through `PyVisa`. USB or TCPIP or anything.
 
 ## PyVisa install
 
