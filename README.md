@@ -21,11 +21,11 @@ scope = USBScope()
 scope.get_waveform(channels = [1],plot=True)
 scope.close()
 ```
-![toto](device_choice.png)
+![toto](assets/device_choice.png)
 
 This will yield a plot of the displayed signal:
 
-![tototo](plot.png)
+![tototo](assets/plot.png)
 
 You can also choose to directly connect to the scope through its adress:
 
