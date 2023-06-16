@@ -16,7 +16,7 @@ The package names are `pyvisa` and `pyvisa-py`.
 
 If you don't know the adress of your device, you can just instantiate an object and you will get a prompt to chose between the detected devices (if any are detected):
 ```python
-from ScopeInterface import USBScope
+from RigolInterface import USBScope
 scope = USBScope()
 scope.get_waveform(channels = [1],plot=True)
 scope.close()
