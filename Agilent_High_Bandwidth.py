@@ -74,8 +74,3 @@ class Spectrum_Analyzer():
         
     def close(self):
         self.sa.close()
-
-# Tests: 
-my_sa = Spectrum_Analyzer("GPIB::18::INSTR")
-print(my_sa.get_max_point())
-my_sa.close()
