@@ -1,11 +1,9 @@
-# sudo chmod 666 /dev/gpib0
-
 import pyvisa as visa
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
 
-class Spectrum_Analyzer():
+class Spectrum_Analyzer:
     def __init__(self, addr: str = None):
         """
         Scans for USB devices
@@ -52,7 +50,7 @@ class Spectrum_Analyzer():
         freqs = np.linspace(center-span//2, center+span//2, len(data))
         return data, freqs
 
-    def get_trace_inherit(self):
+    def get_trace(self):
         span = float(self.sa.query(f':FREQuency:SPAN?'))
         center = float(self.sa.query(f':FREQuency:CENTer?'))
         self.sa.write(':FORMat:TRACe:DATA ASCii')
