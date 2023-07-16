@@ -431,6 +431,20 @@ class ArbitraryFG(_GenericDevice):
         """
         self.resource.write(f"OUTPut{output} OFF")
 
+    def set_impedance(self, output: int = 1, load: str = 'INF'):
+        """
+        Sets the output impedance to specified value. It doesn't actually
+        change the physical impendance of the instrument, but changes the
+        displayed voltage to match the actual voltage on the device under test.
+        :param int output: Output channel
+        :param str load: specified impedance value. {<ohms>|INFinity|MINimum|MAXimum}
+        :return: None
+        """
+        if output not in [1, 2]:
+            print("ERROR : Invalid output specified")
+            return None
+       self.resource.write(f':SOURce{output}:IMP ' + Load) 
+
     def dc_offset(self, output: int = 1, offset: float = 2.0):
         """
         Applies a constant voltage on the specified output
