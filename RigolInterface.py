@@ -443,7 +443,8 @@ class ArbitraryFG(_GenericDevice):
         if output not in [1, 2]:
             print("ERROR : Invalid output specified")
             return None
-       self.resource.write(f':SOURce{output}:IMP ' + Load) 
+        self.resource.write(f':OUTP{output}:IMP ' + load) 
+        print(f'Impedance OUTP{output} set to :', self.resource.query(f':OUTP{output}:IMP?'))
 
     def dc_offset(self, output: int = 1, offset: float = 2.0):
         """
