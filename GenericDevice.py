@@ -55,16 +55,16 @@ class _GenericDevice:
         self.resource.close()
         self.rm.close()
 
-    def PrintError(self):
+    def print_error(self):
         ''' Print eventual errors occurred. '''
         print('Errors: ' + self.resource.query('SYST:ERR?'), end = '')
 
-    def Reset(self):
+    def reset(self):
         ''' Reset instrument to factory default state. Does not clear volatile memory. '''
         self.resource.write('*RST')
         self.resource.write('*WAI')
 
-    def Clear(self):
+    def clear(self):
         ''' Clear event register, error queue -when power is cycled-. '''
         self.resource.write('*CLS')
         self.resource.write('*WAI')
