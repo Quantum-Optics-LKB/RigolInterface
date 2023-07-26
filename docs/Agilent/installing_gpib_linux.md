@@ -23,7 +23,7 @@ sudo modprobe ni_usb_gpib
 sudo ldconfig
 ```
 
-Then in an editor (sudo gedit /etc/gpib.conf) replace interface{...} by :
+Then in an editor (sudo gedit /usr/local/etc/gpib.conf) replace interface{...} by :
 
 ```bash
 interface {
