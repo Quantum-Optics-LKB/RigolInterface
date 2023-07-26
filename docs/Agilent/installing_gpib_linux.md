@@ -5,6 +5,10 @@ This tuto was inspired by the following readings;
 - https://gist.github.com/ochococo/8362414fff28fa593bc8f368ba94d46a
 - https://tomverbeure.github.io/2023/01/29/Installing-Linux-GPIB-Drivers-for-the-Agilent-82357B.html
 - https://xdevs.com/guide/ni_gpib_rpi/
+- https://linux-gpib.sourceforge.io/doc_html/supported-hardware.html#NI-USB-HS
+- https://github.com/fmhess/hsplus_load
+- https://github.com/fmhess/linux_gpib_firmware/tree/master/ni_gpib_usb_hsp
+- 
 
 In the commands do:
 
@@ -19,19 +23,25 @@ cd linux-gpib-code/linux-user
 ./configure --sysconfdir=/etc
 make
 sudo make install
-sudo modprobe ni_usb_gpib
-sudo ldconfig
 ```
-
-Then in an editor (sudo gedit /usr/local/etc/gpib.conf) replace interface{...} by :
+Then leave this folder. In an other folder:
 
 ```bash
-interface {
-        minor = 0
-        board_type = "ni_usb_b"
-        pad = 0
-        master = yes
-} 
+git clone https://github.com/fmhess/hsplus_load.git
+cd hsplus_load
+sudo apt-get install libusb-1.0-0-dev
+sudo make
+sudo chmod u+x hsplus_load
+```
+
+Then, go to https://github.com/fmhess/linux_gpib_firmware/tree/master/ni_gpib_usb_hsp and download ni_gpib_usb_hsp_stage1.bin and ni_gpib_usb_hsp_stage2.bin in the same folder where the make was done.
+
+Back in the commands:
+
+```bash
+sudo ./hsplus_load ni_gpib_usb_hsp_stage1.bin ni_gpib_usb_hsp_stage2.bin
+sudo modprobe ni_usb_gpib
+sudo ldconfig
 
 ```
 
@@ -60,6 +70,7 @@ Back in the commands:
 
 ```bash
 sudo gpib_config
+sudo chmod 777 /dev/gpib*
 ```
 
 As for the authorizations, modify /etc/udev/rules.d/98-gpib-generic.rules (for exemple with `sudo gedit /etc/udev/rules.d/98-gpib-generic.rules`). Replace `GROUP="gpib"` by `GROUP="[user_name]"` with [user_name] being replaced by your user name under linux. For example, for me it gives :`GROUP="aspect-15b"`
