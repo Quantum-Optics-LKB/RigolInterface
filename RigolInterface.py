@@ -7,9 +7,17 @@ Created on Tue Jan 26 10:47:25 2021
 
 import numpy as np
 import matplotlib.pyplot as plt
+from time import sleep
 import os
-from GenericDevice import _GenericDevice
 import sys
+
+# Directory containing GenericDevice must be in path
+# Add parent directory of current file to path
+parent_directory = os.path.dirname(os.path.realpath(__file__))
+sys.path.insert(0, parent_directory)
+# Add also directory two levels up
+sys.path.insert(0, os.path.dirname(parent_directory))
+from GenericDevice import _GenericDevice
 
 plt.ioff()
 
@@ -43,35 +51,62 @@ class _Preamble:
 
 class Scope(_GenericDevice):
     def get_waveform_raw(self, channels: list = [1], plot: bool = False,
-                         memdepth: float = None) -> np.ndarray:
+                         memdepth: float = None, single = False) -> np.ndarray:
         """
-        Gets the waveform of a selection of channels
+        Gets the entire waveform data in the internal memory for a selection of channels
+        (!) To retrieve long timescale waveforms, enable single trigger mode
         :param list channels: List of channels
         :param bool plot: Will plot the traces
         :param float memdepth: Memory depth (number of points) defaults to 
         None
         (does not modify)
+        : param boolean single: Use single trigger mode
         :returns: Data, Time np.ndarrays containing the traces of shape
         (channels, nbr of points) if len(channels)>1
         """
+        no_channels = len(channels)
+        if len(channels) > 4:
+            print("ERROR : Invalid channel list provided" +
+                  " (List too long)")
+            sys.exit()
+        # Print message indicating from which channels waveforms are being retrieved
+        if no_channels == 1: message = f'{self.short_name} | Getting raw waveform from'
+        else: message = f'{self.short_name} | Getting raw waveforms from'
+        for chan in channels:
+            if chan > 4:
+                print("ERROR : Invalid channel list provided" +
+                    " (Channels are 1,2,3,4)")
+                sys.exit()
+            if no_channels==2 and chan == channels[-1]:
+                message+= f' and Channel {chan}'
+            elif no_channels>2:
+                if chan != channels[-1]:
+                    message+= f' Channel {chan},'
+                if chan == channels[-1]:
+                    message+= f' and Channel {chan}'
+            else:
+                message+= f' Channel {chan}'
+        print(message)
+
         Data = []
         Time = []
         if plot:
             fig = plt.figure()
             ax = fig.add_subplot(111)
             leg = []
-        if len(channels) > 4:
-            print("ERROR : Invalid channel list provided" +
-                  " (List too long)")
-            sys.exit()
-        for chan in channels:
-            if chan > 4:
-                print("ERROR : Invalid channel list provided" +
-                      " (Channels are 1,2,3,4)")
-                sys.exit()
+          
         if memdepth is not None:
             self.resource.write(f":ACQuire:MDEPth {int(memdepth)}")
-        self.resource.write(":STOP")
+        if single:
+                trig_status = self.resource.query(':TRIGger:STATus?')
+                self.resource.write(":SINGle")
+                if trig_status == "STOP\n":
+                    # Wait for trig status to change from "STOP" before while loop
+                    sleep(1)
+                while self.resource.query(':TRIGger:STATus?') != 'STOP\n':
+                    pass
+        else:
+            self.resource.write(":STOP")
         # Select channels
         for chan in channels:
             self.resource.write(f":WAV:SOUR CHAN{chan}")
@@ -158,31 +193,71 @@ class Scope(_GenericDevice):
         return Data, Time
 
     def get_waveform(self, channels: list = [1], plot: bool = False,
-                     ndivs: int = 10) -> np.ndarray:
+                     ndivs: int = None, memdepth: float = None, single = False) -> np.ndarray:
         """Retrieves the displayed waveform.
+        Gets the waveform data in the internal memory for the time interval displayed on screen.
         From the displayed time scale and the sampling rate, will compute how many
         points of the memory correspond to the displayed signal.
         It will then retrieve the displayed signal (the part delimited by the 
         shaded area on top of the screen).
         See the :WAVeform Commands documentation for futher details.
+        (!) To retrieve long timescale waveforms, enable single trigger mode
 
         Args:
             channels (list, optional): List of channels. Defaults to [1].
             plot (bool, optional): Whether to plot the result. Defaults to False.
             ndivs (int, optional): The number of time divisions on the screen.
-              Defaults to 10.
-
+                Defaults to None. Argument kept only for compatability reasons,
+                ndivs is now set by query from oscilloscope
+            memdepth (float, optional): Memory depth (number of points) defaults to None
+            single (boolean, optional): Use single trigger mode
         Returns:
             np.ndarray: Data, Time
         """
+        no_channels = len(channels)
+        if len(channels) > 4:
+            print("ERROR : Invalid channel list provided" +
+                  " (List too long)")
+            sys.exit()
+        # Print message indicating from which channels waveforms are being retrieved
+        if no_channels == 1: message = f'{self.short_name} | Getting waveform from'
+        else: message = f'{self.short_name} | Getting waveforms from'
+        for chan in channels:
+            if chan > 4:
+                print("ERROR : Invalid channel list provided" +
+                    " (Channels are 1,2,3,4)")
+                sys.exit()
+            if no_channels==2 and chan == channels[-1]:
+                message+= f' and Channel {chan}'
+            elif no_channels>2:
+                if chan != channels[-1]:
+                    message+= f' Channel {chan},'
+                if chan == channels[-1]:
+                    message+= f' and Channel {chan}'
+            else:
+                message+= f' Channel {chan}'
+        print(message)
+
         Data = []
         Time = []
-        memory_depth = int(
-            self.resource.query_ascii_values(":ACQuire:MDEPth?")[0])
-        time_scale = float(self.resource.query_ascii_values(":TIM:SCAL?")[0])
         if plot:
             fig, ax = plt.subplots()
-        self.resource.write(":STOP")
+        if memdepth is not None:
+            self.resource.write(f":ACQuire:MDEPth {int(memdepth)}")
+        memory_depth = int(
+            self.resource.query_ascii_values(":ACQuire:MDEPth?")[0])
+        ndivs = int(self.resource.query_ascii_values(":SYSTem:GAMount?")[0])
+        time_scale = float(self.resource.query_ascii_values(":TIM:SCAL?")[0])
+        if single:
+            trig_status = self.resource.query(':TRIGger:STATus?')
+            self.resource.write(":SINGle")
+            if trig_status == "STOP\n":
+                # Wait for trig status to change from "STOP" before while loop
+                sleep(1)
+            while self.resource.query(':TRIGger:STATus?') != 'STOP\n':
+                pass
+        else:
+            self.resource.write(":STOP")
         for chan in channels:
             self.resource.write(f':WAV:SOUR CHAN{chan}')
             self.resource.write(':WAV:MODE MAX')
@@ -195,9 +270,10 @@ class Scope(_GenericDevice):
                 f"WAV:STAR {memory_depth//2 - screen_points//2+1}")
             self.resource.write(
                 f"WAV:STOP {memory_depth//2 + screen_points//2}")
+            print(f'{self.short_name} | Transferring {int(screen_points)} data points from Channel {chan}')
             data = self.resource.query_binary_values(':WAV:DATA?', datatype='B',
                                                      container=np.array,
-                                                     delay=.5,
+                                                     delay=0.5,
                                                      data_points=screen_points)
             data = preamble.normalize(data)
             times = np.arange(0, len(data)*preamble.x_inc, preamble.x_inc)
@@ -217,6 +293,57 @@ class Scope(_GenericDevice):
                 ax.set_xlabel("Time (" + tUnit + ")")
                 ax.set_xlim(times[0], times[-1])
         self.resource.write(":RUN")
+        if plot:
+            ax.legend()
+            plt.show()
+        return np.asarray(Time), np.asarray(Data)
+    
+    def get_waveform_screen(self, channels: list = [1], plot: bool = False) -> np.ndarray:
+        """Gets the waveform data currently displayed on the screen.
+        Unlike reading waveform data from the internal memory, the oscilloscope does not need to be put into STOP state.
+
+        Args:
+            channels (list, optional): List of channels. Defaults to [1].
+            plot (bool, optional): Whether to plot the result. Defaults to False.
+
+        Returns:
+            np.ndarray: Data, Time
+        """
+        Data = []
+        Time = []
+        if plot:
+            fig, ax = plt.subplots()
+        for chan in channels:
+            # Set the channel source of waveform data
+            self.resource.write(f':WAVeform:SOURce CHANnel{chan}')
+            # Set the waveform data reading mode to NORMal
+            self.resource.write(':WAVeform:MODE NORMal')
+            # Set the return format of waveform data to BYTE
+            self.resource.write(':WAVeform:FORMat BYTE')
+            # Query and return ten different waveform parameters, see manual
+            # Required to convert retrieved waveform data into time and volts below
+            preamble = _Preamble(self.resource.query(':WAVeform:PREamble?'))
+            # Obtain data from the buffer
+            data = self.resource.query_binary_values(':WAVeform:DATA?', datatype='B',
+                                            container=np.array,
+                                            delay=0.5)
+            data = preamble.normalize(data)
+            times = np.arange(0, len(data)*preamble.x_inc, preamble.x_inc)
+            Data.append(data)
+            Time.append(times)
+            if plot:
+                if (times[-1] < 1e-3):
+                    times *= 1e6
+                    tUnit = "uS"
+                elif (times[-1] < 1):
+                    times *= 1e3
+                    tUnit = "mS"
+                else:
+                    tUnit = "S"
+                ax.plot(times, data, label=f"Channel {chan}")
+                ax.set_ylabel("Voltage (V)")
+                ax.set_xlabel("Time (" + tUnit + ")")
+                ax.set_xlim(times[0], times[-1])
         if plot:
             ax.legend()
             plt.show()
