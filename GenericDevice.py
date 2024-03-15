@@ -8,12 +8,13 @@ class _GenericDevice:
     Not meant to use "as is" rather it is subclassed by each instrument
     class.
     """
-
-    def __init__(self, addr: str = None):
+    def __init__(self, addr: str = None, py_backend: bool = None):
         """
         Scans for USB devices
         """
-        if sys.platform.startswith('linux'):
+        if py_backend == True:
+            self.rm = visa.ResourceManager('@py')
+        elif sys.platform.startswith('linux'):
             self.rm = visa.ResourceManager('@py')
         elif sys.platform.startswith('win32'):
             self.rm = visa.ResourceManager()
@@ -43,11 +44,22 @@ class _GenericDevice:
                 self.resource = self.rm.open_resource(usb[answer])
             else:
                 self.resource = self.rm.open_resource(usb[0])
-                print(f"Connected to {self.resource.query('*IDN?')}")
+                self.identity = self.resource.query('*IDN?')
+                if self.identity.endswith('\n'):
+                    self.identity = self.identity[:-2]
+                self.short_name = self.identity.split(',')[1]
+                print(f"Connected to {self.identity}")
         else:
             try:
                 self.resource = self.rm.open_resource(addr)
-                print(f"Connected to {self.resource.query('*IDN?')}")
+                self.identity = self.resource.query('*IDN?')
+                if self.identity.endswith('\n'):
+                    self.identity = self.identity[:-2]
+                # Device returns string of the form 
+                # <manufacturer>,<model number>,<serial number>,<software revision>  
+                # Use model number to give device a short name
+                self.short_name = self.identity.split(',')[1]
+                print(f"Connected to {self.identity}")
             except Exception:
                 print("ERROR : Could not connect to specified device")
 
