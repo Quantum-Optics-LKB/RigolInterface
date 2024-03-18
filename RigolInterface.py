@@ -51,18 +51,18 @@ class _Preamble:
 
 class Scope(_GenericDevice):
     def get_waveform_raw(self, channels: list = [1], plot: bool = False,
-                         memdepth: float = None, single = False) -> np.ndarray:
+                         memdepth: str | int = None, single = False) -> np.ndarray:
         """
         Gets the entire waveform data in the internal memory for a selection of channels
         (!) To retrieve long timescale waveforms, enable single trigger mode
         :param list channels: List of channels
         :param bool plot: Will plot the traces
-        :param float memdepth: Memory depth (number of points) defaults to 
-        None
-        (does not modify)
+        :param float memdepth: Memory depth (number of points), specify as integer
+            (see device manual for possible values) or "AUTO", 
+            defaults to None (does not modify)
         : param boolean single: Use single trigger mode
         :returns: Data, Time np.ndarrays containing the traces of shape
-        (channels, nbr of points) if len(channels)>1
+            (channels, nbr of points) if len(channels)>1
         """
         no_channels = len(channels)
         if len(channels) > 4:
@@ -96,7 +96,7 @@ class Scope(_GenericDevice):
             leg = []
           
         if memdepth is not None:
-            self.resource.write(f":ACQuire:MDEPth {int(memdepth)}")
+            self.resource.write(f":ACQuire:MDEPth {memdepth}")
         if single:
                 trig_status = self.resource.query(':TRIGger:STATus?')
                 self.resource.write(":SINGle")
@@ -193,7 +193,7 @@ class Scope(_GenericDevice):
         return Data, Time
 
     def get_waveform(self, channels: list = [1], plot: bool = False,
-                     ndivs: int = None, memdepth: float = None, single = False) -> np.ndarray:
+                     ndivs: int = None, memdepth: str | int = None, single = False) -> np.ndarray:
         """Retrieves the displayed waveform.
         Gets the waveform data in the internal memory for the time interval displayed on screen.
         From the displayed time scale and the sampling rate, will compute how many
@@ -209,7 +209,9 @@ class Scope(_GenericDevice):
             ndivs (int, optional): The number of time divisions on the screen.
                 Defaults to None. Argument kept only for compatability reasons,
                 ndivs is now set by query from oscilloscope
-            memdepth (float, optional): Memory depth (number of points) defaults to None
+            memdepth (float, optional): Memory depth (number of points), specify 
+                as integer (see device manual for possible values) or "AUTO", 
+                defaults to None (does not modify)
             single (boolean, optional): Use single trigger mode
         Returns:
             np.ndarray: Data, Time
@@ -243,7 +245,7 @@ class Scope(_GenericDevice):
         if plot:
             fig, ax = plt.subplots()
         if memdepth is not None:
-            self.resource.write(f":ACQuire:MDEPth {int(memdepth)}")
+            self.resource.write(f":ACQuire:MDEPth {memdepth}")
         memory_depth = int(
             self.resource.query_ascii_values(":ACQuire:MDEPth?")[0])
         ndivs = int(self.resource.query_ascii_values(":SYSTem:GAMount?")[0])
