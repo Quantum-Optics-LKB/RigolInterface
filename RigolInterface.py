@@ -380,6 +380,10 @@ class Scope(_GenericDevice):
     def set_xres(self, res: float):
         self.resource.write_ascii_values(":WAV:XINC", res)
 
+    def set_yscale(self, scale:float, channels:list=[1]):
+        for chan in channels:
+             self.resource.write(f":CHAN{chan}:SCAL {scale}")
+
     def measurement(self, channels: list = [1],
                     res: list = None):
         if list is not (None) and len(list) == 2:
