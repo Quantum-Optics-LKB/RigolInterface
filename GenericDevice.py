@@ -44,17 +44,13 @@ class _GenericDevice:
                 self.resource = self.rm.open_resource(usb[answer])
             else:
                 self.resource = self.rm.open_resource(usb[0])
-                self.identity = self.resource.query('*IDN?')
-                if self.identity.endswith('\n'):
-                    self.identity = self.identity[:-2]
+                self.identity = self.resource.query('*IDN?').replace('\n','')
                 self.short_name = self.identity.split(',')[1]
                 print(f"Connected to {self.identity}")
         else:
             try:
                 self.resource = self.rm.open_resource(addr)
-                self.identity = self.resource.query('*IDN?')
-                if self.identity.endswith('\n'):
-                    self.identity = self.identity[:-2]
+                self.identity = self.resource.query('*IDN?').replace('\n','')
                 # Device returns string of the form 
                 # <manufacturer>,<model number>,<serial number>,<software revision>  
                 # Use model number to give device a short name
