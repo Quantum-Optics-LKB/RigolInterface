@@ -70,9 +70,9 @@ class _GenericDevice:
     def reset(self):
         ''' Reset instrument to factory default state. Does not clear volatile memory. '''
         self.resource.write('*RST')
-        self.resource.write('*WAI')
+        self.resource.query('*OPC?')
 
     def clear(self):
         ''' Clear event register, error queue -when power is cycled-. '''
         self.resource.write('*CLS')
-        self.resource.write('*WAI')
+        self.resource.query('*OPC?')
