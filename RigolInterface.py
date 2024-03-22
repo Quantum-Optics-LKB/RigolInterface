@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jan 26 10:47:25 2021
-
-@author: Tangui ALADJIDI
-"""
-
 import numpy as np
 import matplotlib.pyplot as plt
 from time import sleep
@@ -20,7 +13,6 @@ sys.path.insert(0, os.path.dirname(parent_directory))
 from GenericDevice import _GenericDevice
 
 plt.ioff()
-
 
 class _Preamble:
     def __init__(self, s):
@@ -94,17 +86,22 @@ class Scope(_GenericDevice):
             fig = plt.figure()
             ax = fig.add_subplot(111)
             leg = []
-          
+        trig_status = self.resource.query(':TRIGger:STATus?')
         if memdepth is not None:
-            self.resource.write(f":ACQuire:MDEPth {memdepth}")
-        if single:
-                trig_status = self.resource.query(':TRIGger:STATus?')
-                self.resource.write(":SINGle")
+            if int(self.resource.query(":ACQuire:MDEPth?")) != memdepth:
                 if trig_status == "STOP\n":
-                    # Wait for trig status to change from "STOP" before while loop
-                    sleep(1)
-                while self.resource.query(':TRIGger:STATus?') != 'STOP\n':
-                    pass
+                    # Memory depth cannot be set while oscilloscope is in STOP state
+                    self.resource.query(':RUN;*OPC?')
+                    self.resource.write(f":ACQuire:MDEPth {memdepth}")
+            else:
+                self.resource.query(f":ACQuire:MDEPth {memdepth};*OPC?")
+        if single:
+            self.resource.write(":SINGle")
+            if trig_status.replace('\n','') == "STOP":
+                # Wait for trig status to change from "STOP" before while loop
+                sleep(1)
+            while self.resource.query(':TRIGger:STATus?').replace('\n','') != 'STOP':
+                sleep(0.1)
         else:
             self.resource.write(":STOP")
         # Select channels
@@ -157,7 +154,6 @@ class Scope(_GenericDevice):
                     # Extent the rawdata variables with the new values.
                     rawdata.extend(self.resource.query_binary_values(":WAV:DATA?",
                                    datatype='B'))
-            print()
             data = (np.asarray(rawdata) - YORigin - YREFerence) * YINCrement
             Data.append(data)
             # Calculate data size for generating time axis
@@ -201,7 +197,9 @@ class Scope(_GenericDevice):
         It will then retrieve the displayed signal (the part delimited by the 
         shaded area on top of the screen).
         See the :WAVeform Commands documentation for futher details.
-        (!) To retrieve long timescale waveforms, enable single trigger mode
+        (!) To retrieve long timescale waveforms, enable single trigger mode, and
+        beware of VISA timeout if transferring large number of data points.
+        (timeout issue can be resolved by reducing memory depth).
 
         Args:
             channels (list, optional): List of channels. Defaults to [1].
@@ -244,26 +242,33 @@ class Scope(_GenericDevice):
         Time = []
         if plot:
             fig, ax = plt.subplots()
+        trig_status = self.resource.query(':TRIGger:STATus?')
         if memdepth is not None:
-            self.resource.write(f":ACQuire:MDEPth {memdepth}")
+            if int(self.resource.query(":ACQuire:MDEPth?")) != memdepth:
+                if trig_status == "STOP\n":
+                    # Memory depth cannot be set while oscilloscope is in STOP state
+                    self.resource.query(':RUN;*OPC?')
+                    self.resource.write(f":ACQuire:MDEPth {memdepth}")
+            else:
+                self.resource.query(f":ACQuire:MDEPth {memdepth};*OPC?")
         memory_depth = int(
             self.resource.query_ascii_values(":ACQuire:MDEPth?")[0])
         ndivs = int(self.resource.query_ascii_values(":SYSTem:GAMount?")[0])
         time_scale = float(self.resource.query_ascii_values(":TIM:SCAL?")[0])
         if single:
-            trig_status = self.resource.query(':TRIGger:STATus?')
             self.resource.write(":SINGle")
             if trig_status == "STOP\n":
                 # Wait for trig status to change from "STOP" before while loop
                 sleep(1)
-            while self.resource.query(':TRIGger:STATus?') != 'STOP\n':
-                pass
+            while self.resource.query(':TRIGger:STATus?').replace('\n','') != 'STOP':
+                sleep(0.1)
         else:
             self.resource.write(":STOP")
         for chan in channels:
             self.resource.write(f':WAV:SOUR CHAN{chan}')
             self.resource.write(':WAV:MODE MAX')
             self.resource.write(':WAV:FORM BYTE')
+            self.resource.query('*OPC?')
             preamble = _Preamble(self.resource.query(':WAV:PRE?'))
             screen_points = np.floor(time_scale/preamble.x_inc)*ndivs
             # we look for the middle of the memory and take what's displayed
@@ -462,14 +467,18 @@ class SpectrumAnalyzer(_GenericDevice):
         return data, times
 
     def span(self, center: float = 22.5e6, span: float = 45e6, rbw: int = 100,
-             vbw: int = 30, swt: float = 'auto', trig: bool = None):
-        """Arbitrary span measurement.
+             vbw: int = 30, swt: float = 'auto', trig: bool = None, single = False):
+        """Configure and execute measurement of noise power spectrum
+        (!) For long sweep times, use single sweep mode
+
         :param float center: Center frequency in Hz
         :param float span: span
         :param float rbw: Resolution bandwidth
         :param float vbw: Video bandwidth
         :param float swt: Total measurement time
         :param bool trig: External trigger
+        :param bool single: Set True for single sweep mode,
+            defaults to False for continuous sweep mode
         :return: data, freqs for data and frequencies
         :rtype: np.ndarray
 
@@ -484,24 +493,69 @@ class SpectrumAnalyzer(_GenericDevice):
             self.resource.write(':SENSe:SWEep:TIME:AUTO ON')
         self.resource.write(
             ':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOGarithmic')
-        # self.resource.write(':POWer:ASCale')
+        self.resource.query('*OPC?')
+
         if trig is not None:
-            trigstate = self.resource.query(':TRIGger:SEQuence:SOURce?')
-            istrigged = trigstate != 'IMM'
-            if trig and not (istrigged):
+            trigstate = self.resource.query(':TRIGger:SEQuence:SOURce?').replace('\n','')
+            istrigged = trigstate != 'IMM' # whether SA is initially triggered
+            # If trigger true and initial trigger type IMMediate, then set to EXTernal
+            if trig and not (istrigged): 
                 self.resource.write(':TRIGger:SEQuence:SOURce EXTernal')
                 self.resource.write(
                     ':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
+            # If trigger false and initial trigger type not IMMediate, set to IMMediate
             elif not (trig) and istrigged:
                 self.resource.write(':TRIGger:SEQuence:SOURce IMMediate')
-        self.resource.write(':CONFigure:ACPower')
+        self.resource.query('*OPC?')
+        set_trigstate = self.resource.query(':TRIGger:SEQuence:SOURce?').replace('\n','')
+    
+        # Query current instrument sweep state
+        sweep_state = int(self.resource.query(':INITiate:CONTinuous?'))
+        if single == False:
+            if sweep_state == 1: 
+                # Already in continuous
+                pass
+            elif sweep_state == 0:
+                # Put into continous
+                self.resource.write(':INITiate:CONTinuous 1')
+            triginfo_msg = ' with trigger' if set_trigstate == 'EXT' else ''
+            print(f'{self.short_name} | Getting power spectrum (continuous sweep mode' +
+                  triginfo_msg + ')')
+        elif single == True:
+            # In following conditional blocks, *OPC command (operation complete)
+            # is sent subsequent to command intializing scan so that operation 
+            # complete status can be polled (must wait for scan completion).
+            self.resource.write('*CLS') # Reset status registers, clear error queue
+            if sweep_state == 1:
+                # Put into single
+                self.resource.write(':INITiate:CONTinuous 0')
+                self.resource.write(':INITiate:IMMediate; *OPC')
+            elif sweep_state == 0:
+                if trig is None or trig == False:
+                    self.resource.write(':INITiate:IMMediate; *OPC')
+                elif trig == True:
+                    # Must reset trigger just before initiating scan, otherwise
+                    # it seems trigger success condition is stored, because scan
+                    # starts immediately instead of waiting for next trigger
+                    self.resource.write(':TRIGger:SEQuence:SOURce EXTernal')
+                    self.resource.write(':INITiate:IMMediate; *OPC')
+            triginfo_msg = ' on trigger' if set_trigstate == 'EXT' else ''
+            print(f'{self.short_name} | Getting power spectrum (single sweep' +
+                  triginfo_msg + ')')
+            # Poll the operation complete status in the event status 
+            # register (ESR). (Once all commands before *OPC have been executed, 
+            # the operation complete bit in the ESR is set to 1)
+            while int(self.resource.query('*ESR?')) != 1:
+                sleep(0.1)
         self.resource.write(':FORMat:TRACe:DATA ASCii')
-        # if specAn was trigged before, put it back in the same state
+        data = self.query_data()
+        # If SA was trigged before, put it back in the same state
         if trig is not None:
             if not (trig) and istrigged:
                 self.resource.write(f":TRIGger:SEQuence:SOURce {trigstate}")
-        data = self.query_data()
-        # sweeptime = float(self.resource.query(':SWEep:TIME?'))
+        # Put SA back into the state it started in
+        if sweep_state != int(self.resource.query(':INITiate:CONTinuous?')):
+            self.resource.write(f':INITiate:CONTinuous {int(sweep_state)}')
         freqs = np.linspace(center-span//2, center+span//2, len(data))
         return data, freqs
 
@@ -512,12 +566,9 @@ class SpectrumAnalyzer(_GenericDevice):
         :rtype: list
 
         """
-        self.resource.write(':INITiate:PAUSe')
         rawdata = self.resource.query(':TRACe? TRACE1')
         data = rawdata.split(', ')[1:]
         data = [float(i) for i in data]
-        self.resource.write(':TRACe:AVERage:CLEar')
-        self.resource.write(':INITiate:RESume')
         return np.asarray(data)
 
 
