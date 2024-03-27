@@ -162,6 +162,7 @@ class Scope(_GenericDevice):
             times = np.linspace(XREFerence, XINCrement*data_size, data_size)
             Time.append(times)
             if plot:
+                times = times.copy()
                 leg.append(f"Channel {chan}")
                 # See if we should use a different time axis
                 if (times[-1] < 1e-3):
@@ -287,6 +288,7 @@ class Scope(_GenericDevice):
             Data.append(data)
             Time.append(times)
             if plot:
+                times = times.copy()
                 if (times[-1] < 1e-3):
                     times *= 1e6
                     tUnit = "uS"
