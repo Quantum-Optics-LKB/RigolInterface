@@ -92,8 +92,6 @@ class Scope(_GenericDevice):
                 if trig_status == "STOP\n":
                     # Memory depth cannot be set while oscilloscope is in STOP state
                     self.resource.query(':RUN;*OPC?')
-                    self.resource.write(f":ACQuire:MDEPth {memdepth}")
-            else:
                 self.resource.query(f":ACQuire:MDEPth {memdepth};*OPC?")
         if single:
             self.resource.write(":SINGle")
@@ -249,8 +247,6 @@ class Scope(_GenericDevice):
                 if trig_status == "STOP\n":
                     # Memory depth cannot be set while oscilloscope is in STOP state
                     self.resource.query(':RUN;*OPC?')
-                    self.resource.write(f":ACQuire:MDEPth {memdepth}")
-            else:
                 self.resource.query(f":ACQuire:MDEPth {memdepth};*OPC?")
         memory_depth = int(
             self.resource.query_ascii_values(":ACQuire:MDEPth?")[0])
