@@ -45,7 +45,7 @@ class _GenericDevice:
             else:
                 self.resource = self.rm.open_resource(usb[0])
                 self.identity = self.resource.query('*IDN?').replace('\n','')
-                self.short_name = self.identity.split(',')[1]
+                self.short_name = self.identity.split(',')[1].replace(' ','')
                 print(f"Connected to {self.identity}")
         else:
             try:
@@ -54,7 +54,7 @@ class _GenericDevice:
                 # Device returns string of the form 
                 # <manufacturer>,<model number>,<serial number>,<software revision>  
                 # Use model number to give device a short name
-                self.short_name = self.identity.split(',')[1]
+                self.short_name = self.identity.split(',')[1].replace(' ','')
                 print(f"Connected to {self.identity}")
             except Exception:
                 print("ERROR : Could not connect to specified device")
