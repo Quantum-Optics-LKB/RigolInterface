@@ -31,6 +31,99 @@ class SpectrumAnalyzer(_GenericDevice):
         freqs = np.linspace(center-span/2, center+span/2, len(data))
         return data, freqs
 
+    def zero_span(self, center: float = 1e6, rbw: int = 100,
+                  vbw: int = 30, swt: float = 'auto', 
+                  trig: bool = None, single = False):
+        """Zero span measurement.
+
+        (!) For long sweep times, use single sweep mode
+
+        :param float center: Center frequency in Hz, converted to int
+        :param float rbw: Resolution bandwidth
+        :param float vbw: Video bandwidth
+        :param float swt: Total measurement time. Except if set to 'auto'
+        :param bool trig: External trigger
+        :param bool single: Set True for single sweep mode,
+            defaults to False for continuous sweep mode
+        :return: data, time for data and time
+        :rtype: np.ndarray
+
+        """
+        self.resource.write(':FREQuency:SPAN 0')
+        self.resource.write(f':FREQuency:CENTer {center}')
+        self.resource.write(f':BANDwidth:RESolution {int(rbw)}')
+        self.resource.write(f':BANDwidth:VIDeo {int(vbw)}')
+        if swt != 'auto':
+            self.resource.write(f':SENSe:SWEep:TIME {swt}')  # in s.
+        else:
+            self.resource.write(':SENSe:SWEep:TIME:AUTO ON')
+        self.resource.write(
+            ':DISPlay:WINdow:TRACe:Y:SCALe:SPACing LOGarithmic')
+        
+        if trig is not None:
+            trigstate = self.resource.query(':TRIGger:SEQuence:SOURce?').replace('\n','')
+            istrigged = trigstate != 'IMM' # whether SA is initially triggered
+            # If trigger true and initial trigger type IMMediate, then set to EXTernal
+            if trig and not (istrigged): 
+                self.resource.write(':TRIGger:SEQuence:SOURce EXTernal')
+                self.resource.write(
+                    ':TRIGger:SEQuence:EXTernal:SLOPe POSitive')
+            # If trigger false and initial trigger type not IMMediate, set to IMMediate
+            elif not (trig) and istrigged:
+                self.resource.write(':TRIGger:SEQuence:SOURce IMMediate')
+        set_trigstate = self.resource.query(':TRIGger:SEQuence:SOURce?').replace('\n','')
+
+        # Query current instrument sweep state
+        sweep_state = int(self.resource.query(':INITiate:CONTinuous?'))
+        if single == False:
+            if sweep_state == 1: 
+                # Already in continuous
+                pass
+            elif sweep_state == 0:
+                # Put into continous
+                self.resource.write(':INITiate:CONTinuous 1')
+            triginfo_msg = ' with trigger' if set_trigstate == 'EXT' else ''
+            print(f'{self.short_name} | Getting zero span scan (continuous sweep mode' +
+                  triginfo_msg + ')')
+        elif single == True:
+            # In following conditional blocks, *OPC command (operation complete)
+            # is sent subsequent to command intializing scan so that operation 
+            # complete status can be polled (must wait for scan completion).
+            self.resource.write('*CLS') # Reset status registers, clear error queue
+            if sweep_state == 1:
+                # Put into single
+                self.resource.write(':INITiate:CONTinuous 0')
+                self.resource.write(':INITiate:IMMediate; *OPC')
+            elif sweep_state == 0:
+                if trig is None or trig == False:
+                    self.resource.write(':INITiate:IMMediate; *OPC')
+                elif trig == True:
+                    # Must reset trigger just before initiating scan, otherwise
+                    # it seems trigger success condition is stored, because scan
+                    # starts immediately instead of waiting for next trigger
+                    self.resource.write(':TRIGger:SEQuence:SOURce EXTernal')
+                    self.resource.write(':INITiate:IMMediate; *OPC')
+            triginfo_msg = ' on trigger' if set_trigstate == 'EXT' else ''
+            print(f'{self.short_name} | Getting zero span scan (single sweep' +
+                  triginfo_msg + ')')
+            # Poll the operation complete status in the event status 
+            # register (ESR). (Once all commands before *OPC have been executed, 
+            # the operation complete bit in the ESR is set to 1)
+            while int(self.resource.query('*ESR?')) != 1:
+                sleep(0.1)
+        self.resource.write(':FORMat:TRACe:DATA ASCii')
+        data = self.query_data()
+         # If SA was trigged before, put it back in the same state
+        if trig is not None:
+            if not (trig) and istrigged:
+                self.resource.write(f":TRIGger:SEQuence:SOURce {trigstate}")
+        # Put SA back into the state it started in
+        if sweep_state != int(self.resource.query(':INITiate:CONTinuous?')):
+            self.resource.write(f':INITiate:CONTinuous {int(sweep_state)}')
+        sweeptime = float(self.resource.query(':SWEep:TIME?'))
+        times = np.linspace(0, sweeptime, len(data))
+        return data, times
+
     def span(self, center: float = 22.5e6, span: float = 45e6,
                                      rbw: int = 100,
                                      vbw: int = 30, swt: float = 'auto',
