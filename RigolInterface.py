@@ -1,6 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from time import sleep
+from time import sleep, time
 import os
 import sys
 
@@ -218,7 +218,7 @@ class Scope(_GenericDevice):
 
     def get_waveform(self, channels: list = [1], memdepth: str | int = None,
                      single = False, plot: bool = False,
-                     ndivs: int = None) -> np.ndarray:
+                     ndivs: int = None, barrier = None) -> np.ndarray:
         """Retrieves the displayed waveform.
         Gets the waveform data in the internal memory for the time interval displayed on screen.
         From the displayed time scale and the sampling rate, will compute how many
@@ -240,6 +240,8 @@ class Scope(_GenericDevice):
             ndivs (int, optional): The number of time divisions on the screen.
                 Defaults to None. Argument kept only for compatability reasons,
                 ndivs is now set by query from oscilloscope
+            barrier (<multiprocessing.Barrier>, optional): Useful for
+                synchronizing multiple processes (measurements)
         Returns:
             np.ndarray: Data, Time
         """
@@ -281,7 +283,12 @@ class Scope(_GenericDevice):
         ndivs = int(self.resource.query_ascii_values(":SYSTem:GAMount?")[0])
         time_scale = float(self.resource.query_ascii_values(":TIM:SCAL?")[0])
         if single:
-            self.resource.write(":SINGle")
+            if barrier is not None:
+                barrier.wait()
+                self.resource.write(":SINGle")
+                print(f'{self.short_name} | Waiting for trigger as of {time()} s')
+            else:
+                self.resource.write(":SINGle")
             if trig_status == "STOP\n":
                 # Wait for trig status to change from "STOP" before while loop
                 sleep(1)

@@ -1,5 +1,6 @@
 import os
 import sys
+from time import time
 
 # Directory containing GenericDevice must be in path
 # Add parent directory of current file to path
@@ -77,7 +78,7 @@ class SpectrumAnalyzer(_GenericDevice):
     def zero_span(self, center: float = 1e6, rbw: int = 100,
                   vbw: int = 30, swt: float = 'auto', 
                   trig: bool = None, single = False,
-                  plot: bool = False):
+                  plot: bool = False, barrier = None):
         """Zero span measurement.
 
         (!) For long sweep times, use single sweep mode
@@ -90,6 +91,8 @@ class SpectrumAnalyzer(_GenericDevice):
         :param bool single: Set True for single sweep mode,
             defaults to False for continuous sweep mode
         :param bool plot: option to plot
+        :param barrier: <multiprocessing.Barrier> instance,
+           useful for synchronizing multiple processes (measurements)
         :return: data, time for data and time
         :rtype: np.ndarray
 
@@ -138,7 +141,12 @@ class SpectrumAnalyzer(_GenericDevice):
             if sweep_state == 1:
                 # Put into single
                 self.resource.write(':INITiate:CONTinuous 0')
-                self.resource.write(':INITiate:IMMediate; *OPC')
+                if barrier is not None:
+                        barrier.wait()
+                        self.resource.write(':INITiate:IMMediate; *OPC')
+                        print(f'{self.short_name} | Waiting for trigger as of {time()} s')
+                else:
+                    self.resource.write(':INITiate:IMMediate; *OPC')
             elif sweep_state == 0:
                 if trig is None or trig == False:
                     self.resource.write(':INITiate:IMMediate; *OPC')
@@ -147,7 +155,12 @@ class SpectrumAnalyzer(_GenericDevice):
                     # it seems trigger success condition is stored, because scan
                     # starts immediately instead of waiting for next trigger
                     self.resource.write(':TRIGger:SEQuence:SOURce EXTernal')
-                    self.resource.write(':INITiate:IMMediate; *OPC')
+                    if barrier is not None:
+                        barrier.wait()
+                        self.resource.write(':INITiate:IMMediate; *OPC')
+                        print(f'{self.short_name} | Waiting for trigger as of {time()} s')
+                    else:
+                        self.resource.write(':INITiate:IMMediate; *OPC')
             triginfo_msg = ' on trigger' if set_trigstate == 'EXT' else ''
             print(f'{self.short_name} | Getting zero span scan (single sweep' +
                   triginfo_msg + ')')
