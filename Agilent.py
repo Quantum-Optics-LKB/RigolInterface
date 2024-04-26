@@ -10,8 +10,51 @@ sys.path.insert(0, os.path.dirname(parent_directory))
 from GenericDevice import _GenericDevice
 
 import numpy as np
+import matplotlib.pyplot as plt
 from time import sleep
 
+def set_time_unit(times):
+    """Determine most appropriate SI prefix for time. 
+    Return unit and rescaled time axis.
+
+    Args:
+        times (array-like): time values
+
+    Returns:
+        array-like, str: rescaled axis, new SI unit
+    """
+    if (times[-1] < 1e-3):
+        times *= 1e6
+        tUnit = "µs"
+    elif (times[-1] < 1):
+        times *= 1e3
+        tUnit = "ms"
+    else:
+        tUnit = "s"
+    return times, tUnit
+
+def set_freq_unit(freqs):
+    """Determine most appropriate SI prefix for frequency. 
+    Return unit and rescaled frequency axis.
+
+    Args:
+        freqs (array-like): frequency values
+
+    Returns:
+        array-like, str: rescaled axis, new SI unit
+    """    
+    if (freqs[-1] >= 1e9):
+        freqs *= 1e-9
+        fUnit = "GHz"
+    elif (freqs[-1] >= 1e6):
+        freqs *= 1e-6
+        fUnit = "MHz"
+    elif (freqs[-1] >= 1e3):
+        freqs *= 1e-3
+        fUnit = "kHz"
+    else:
+        fUnit = "Hz"
+    return freqs, fUnit
 
 class SpectrumAnalyzer(_GenericDevice):
     def get_max_point(self) -> float:
@@ -33,7 +76,8 @@ class SpectrumAnalyzer(_GenericDevice):
 
     def zero_span(self, center: float = 1e6, rbw: int = 100,
                   vbw: int = 30, swt: float = 'auto', 
-                  trig: bool = None, single = False):
+                  trig: bool = None, single = False,
+                  plot: bool = False):
         """Zero span measurement.
 
         (!) For long sweep times, use single sweep mode
@@ -45,6 +89,7 @@ class SpectrumAnalyzer(_GenericDevice):
         :param bool trig: External trigger
         :param bool single: Set True for single sweep mode,
             defaults to False for continuous sweep mode
+        :param bool plot: option to plot
         :return: data, time for data and time
         :rtype: np.ndarray
 
@@ -122,12 +167,20 @@ class SpectrumAnalyzer(_GenericDevice):
             self.resource.write(f':INITiate:CONTinuous {int(sweep_state)}')
         sweeptime = float(self.resource.query(':SWEep:TIME?'))
         times = np.linspace(0, sweeptime, len(data))
+        if plot:
+            fig, ax = plt.subplots()
+            times_rescaled, tUnit = set_time_unit(times)
+            ax.plot(times_rescaled, data)
+            ax.set_xlabel(f'Time ({tUnit})')
+            ax.set_ylabel('Noise Power Spectral Density (dBm)')
+            plt.show()
         return data, times
 
     def span(self, center: float = 22.5e6, span: float = 45e6,
                                      rbw: int = 100,
                                      vbw: int = 30, swt: float = 'auto',
-                                     trig: bool = None, single = False) -> np.ndarray:
+                                     trig: bool = None, single = False,
+                                     plot: bool = False) -> np.ndarray:
         """Configure and execute measurement of noise power spectrum
 
         THIS FUNCTION REPLACES NOW DEPRECATED FUNCTION <set_trace_parameters_and_get>
@@ -145,6 +198,7 @@ class SpectrumAnalyzer(_GenericDevice):
         :param bool trig: External trigger
         :param bool single: Set True for single sweep mode,
             defaults to False for continuous sweep mode
+        :param bool plot: option to plot
         :return: data, freqs for data and frequencies
         :rtype: np.ndarray
 
@@ -221,6 +275,13 @@ class SpectrumAnalyzer(_GenericDevice):
         if sweep_state != int(self.resource.query(':INITiate:CONTinuous?')):
             self.resource.write(f':INITiate:CONTinuous {int(sweep_state)}')
         freqs = np.linspace(center-span//2, center+span//2, len(data))
+        if plot:
+            fig, ax = plt.subplots()
+            freq_rescaled, fUnit = set_freq_unit(freqs)
+            ax.plot(freq_rescaled, data)
+            ax.set_xlabel(f'Frequency ({fUnit})')
+            ax.set_ylabel('Noise Power Spectral Density (dBm)')
+            plt.show()
         return data, freqs
 
     def query_data(self) -> np.ndarray:
