@@ -24,6 +24,7 @@ def set_time_unit(times):
     Returns:
         array-like, str: rescaled axis, new SI unit
     """
+    times = times.copy() # the input list or array is mutable
     if (times[-1] < 1e-3):
         times *= 1e6
         tUnit = "µs"
@@ -43,7 +44,8 @@ def set_freq_unit(freqs):
 
     Returns:
         array-like, str: rescaled axis, new SI unit
-    """    
+    """
+    freqs = freqs.copy() # the input list or array is mutable
     if (freqs[-1] >= 1e9):
         freqs *= 1e-9
         fUnit = "GHz"
