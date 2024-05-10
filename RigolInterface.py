@@ -85,10 +85,10 @@ class _Preamble:
         # xvals += self.x_orig
         return xvals
 
-
 class Scope(_GenericDevice):
+
     def get_waveform_raw(self, channels: list = [1], memdepth: str | int = None,
-                          single = False, plot: bool = False) -> np.ndarray:
+                          single = False, plot: bool = False, ndivs: int = None) -> np.ndarray:
         """
         Gets the entire waveform data in the internal memory for a selection of channels
         (!) To retrieve long timescale waveforms, enable single trigger mode
@@ -98,6 +98,9 @@ class Scope(_GenericDevice):
             defaults to None (does not modify)
         :param boolean single: Use single trigger mode
         :param bool plot: Will plot the traces
+        :param int ndivs: The number of time divisions on the screen.
+                Defaults to None. If possible (depends on scope model),
+                ndivs is set by query to oscilloscope.
         :returns: Data, Time np.ndarrays containing the traces of shape
             (channels, nbr of points) if len(channels)>1
         """
@@ -128,12 +131,40 @@ class Scope(_GenericDevice):
         Data = []
         Time = []
         trig_status = self.resource.query(':TRIGger:STATus?')
+
+        # Set memory depth if specified
         if memdepth is not None:
-            if int(self.resource.query(":ACQuire:MDEPth?")) != memdepth:
+            prev_memdepth = self.resource.query(":ACQuire:MDEPth?").replace('\n','')
+            if prev_memdepth != 'AUTO':
+                prev_memdepth = int(prev_memdepth)
+            if prev_memdepth != memdepth:
                 if trig_status == "STOP\n":
                     # Memory depth cannot be set while oscilloscope is in STOP state
                     self.resource.query(':RUN;*OPC?')
-                self.resource.query(f":ACQuire:MDEPth {memdepth};*OPC?")
+                if memdepth == 'AUTO':
+                    self.resource.query(f":ACQuire:MDEPth {memdepth};*OPC?")
+                else:
+                    self.resource.query(f":ACQuire:MDEPth {int(memdepth)};*OPC?")
+
+        # Get memory depth
+        memory_depth = self.resource.query(":ACQuire:MDEPth?").replace('\n','')
+        if memory_depth == 'AUTO': # Some scope models return 'AUTO', others return actual integer
+            # In this case, must calculate memdepth: memdepth = sample rate x waveform length,
+            # where waveform length is horizontal timebase x ndivs
+            sample_rate = float(self.resource.query(':ACQuire:SRATe?'))
+            time_scale = float(self.resource.query_ascii_values(":TIMebase:SCALe?")[0])
+            # ndivs is number of horizontal grids on the screen
+            if ndivs == None:
+                try:
+                    ndivs = int(self.resource.query_ascii_values(":SYSTem:GAMount?")[0])
+                except Exception:
+                    sys.exit("ERROR: ndivs must be specified manually for this oscilloscope.")
+            waveform_length = time_scale * ndivs
+            memory_depth = int(round(sample_rate*waveform_length))
+        else:
+            memory_depth = int(memory_depth)
+
+        # Measure waveform, afterwards scope must be in STOP state to read from internal memory
         if single:
             self.resource.write(":SINGle")
             if trig_status.replace('\n','') == "STOP":
@@ -143,7 +174,8 @@ class Scope(_GenericDevice):
                 sleep(0.1)
         else:
             self.resource.write(":STOP")
-        # Select channels
+            
+        # Transfer data from scope
         for chan in channels:
             self.resource.write(f":WAV:SOUR CHAN{chan}")
             # Y origin for wav data
@@ -152,13 +184,10 @@ class Scope(_GenericDevice):
             YREFerence = self.resource.query_ascii_values(":WAV:YREF?")[0]
             # Y INC for wav data
             YINCrement = self.resource.query_ascii_values(":WAV:YINC?")[0]
-
             # X REF for wav data
             XREFerence = self.resource.query_ascii_values(":WAV:XREF?")[0]
             # X INC for wav data
             XINCrement = self.resource.query_ascii_values(":WAV:XINC?")[0]
-            memory_depth = int(
-                self.resource.query_ascii_values(":ACQuire:MDEPth?")[0])
             # Set the waveform reading mode to RAW.
             self.resource.write(":WAV:MODE RAW")
             # Set return format to Byte.
@@ -240,8 +269,8 @@ class Scope(_GenericDevice):
             single (boolean, optional): Use single trigger mode
             plot (bool, optional): Whether to plot the result. Defaults to False.
             ndivs (int, optional): The number of time divisions on the screen.
-                Defaults to None. Argument kept only for compatability reasons,
-                ndivs is now set by query from oscilloscope
+                Defaults to None. If possible (depends on scope model),
+                ndivs is set by query to oscilloscope.
             barrier (<multiprocessing.Barrier>, optional): Useful for
                 synchronizing multiple processes (measurements)
         Returns:
@@ -274,16 +303,53 @@ class Scope(_GenericDevice):
         Data = []
         Time = []
         trig_status = self.resource.query(':TRIGger:STATus?')
+
+        # Set memory depth if specified
         if memdepth is not None:
-            if int(self.resource.query(":ACQuire:MDEPth?")) != memdepth:
+            prev_memdepth = self.resource.query(":ACQuire:MDEPth?").replace('\n','')
+            if prev_memdepth != 'AUTO':
+                prev_memdepth = int(prev_memdepth)
+            if prev_memdepth != memdepth:
                 if trig_status == "STOP\n":
                     # Memory depth cannot be set while oscilloscope is in STOP state
                     self.resource.query(':RUN;*OPC?')
-                self.resource.query(f":ACQuire:MDEPth {memdepth};*OPC?")
-        memory_depth = int(
-            self.resource.query_ascii_values(":ACQuire:MDEPth?")[0])
-        ndivs = int(self.resource.query_ascii_values(":SYSTem:GAMount?")[0])
-        time_scale = float(self.resource.query_ascii_values(":TIM:SCAL?")[0])
+                if memdepth == 'AUTO':
+                    self.resource.query(f":ACQuire:MDEPth {memdepth};*OPC?")
+                else:
+                    self.resource.query(f":ACQuire:MDEPth {int(memdepth)};*OPC?")
+        
+        # ndivs is number of horizontal grids on the screen
+        if ndivs == None:
+            try:
+                ndivs = int(self.resource.query_ascii_values(":SYSTem:GAMount?")[0])
+            except Exception:
+                sys.exit("ERROR: ndivs must be specified manually for this oscilloscope.")
+
+        # get horizontal timebase
+        time_scale = float(self.resource.query_ascii_values(":TIMebase:SCALe?")[0])
+        # get sample rate
+        sample_rate = float(self.resource.query(':ACQuire:SRATe?'))
+
+        # Get memory depth
+        memory_depth = self.resource.query(":ACQuire:MDEPth?").replace('\n','')
+        if memory_depth == 'AUTO': # Some scope models return 'AUTO', others return actual integer
+            # In this case, must calculate memdepth: memdepth = sample rate x waveform length,
+            # where waveform length is horizontal timebase x ndivs
+            waveform_length = time_scale * ndivs
+            memory_depth = int(round(sample_rate*waveform_length))
+        else:
+            memory_depth = int(memory_depth)
+
+        # Exit before measurement if data transfer from scope will be unsuccessful
+        x_inc = 1/sample_rate
+        screen_points = np.floor(time_scale/x_inc)*ndivs
+        if screen_points > 250000:
+            sys.exit("ERROR: The number of waveform data points exceeds the" +
+                  " maximum number which can be read from the oscilloscope at" + 
+                  " a single time (see manual).\nEither reduce memory depth" +
+                  " or use <Scope>.get_waveform_raw().")
+
+        # Measure waveform, afterwards scope must be in STOP state to read from internal memory
         if single:
             if barrier is not None:
                 barrier.wait()
@@ -296,15 +362,17 @@ class Scope(_GenericDevice):
                 sleep(1)
             while self.resource.query(':TRIGger:STATus?').replace('\n','') != 'STOP':
                 sleep(0.1)
+            print(f"{self.short_name} | Waveform complete as of {time()} s")
         else:
             self.resource.write(":STOP")
+         
+        # Transfer data from scope
         for chan in channels:
             self.resource.write(f':WAV:SOUR CHAN{chan}')
-            self.resource.write(':WAV:MODE MAX')
+            self.resource.write(':WAV:MODE RAW')
             self.resource.write(':WAV:FORM BYTE')
             self.resource.query('*OPC?')
             preamble = _Preamble(self.resource.query(':WAV:PRE?'))
-            screen_points = np.floor(time_scale/preamble.x_inc)*ndivs
             # we look for the middle of the memory and take what's displayed
             # on the screen
             self.resource.write(
@@ -317,7 +385,7 @@ class Scope(_GenericDevice):
                                                      delay=0.5,
                                                      data_points=screen_points)
             data = preamble.normalize(data)
-            times = np.arange(0, len(data)*preamble.x_inc, preamble.x_inc)
+            times = np.arange(0, np.round(len(data)*preamble.x_inc, 9), preamble.x_inc)
             Data.append(data)
             Time.append(times)
         if plot: 
@@ -361,7 +429,7 @@ class Scope(_GenericDevice):
                                             container=np.array,
                                             delay=0.5)
             data = preamble.normalize(data)
-            times = np.arange(0, len(data)*preamble.x_inc, preamble.x_inc)
+            times = np.arange(0, np.round(len(data)*preamble.x_inc, 9), preamble.x_inc)
             Data.append(data)
             Time.append(times)
         if plot:
