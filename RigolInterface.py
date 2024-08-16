@@ -616,7 +616,7 @@ class SpectrumAnalyzer(_GenericDevice):
             times_rescaled, tUnit = set_time_unit(times)
             ax.plot(times_rescaled, data)
             ax.set_xlabel(f'Time ({tUnit})')
-            ax.set_ylabel('Noise Power Spectral Density (dBm)')
+            ax.set_ylabel('Noise Power (dBm)')
             plt.show()
         return data, times
 
@@ -718,7 +718,7 @@ class SpectrumAnalyzer(_GenericDevice):
             freq_rescaled, fUnit = set_freq_unit(freqs)
             ax.plot(freq_rescaled, data)
             ax.set_xlabel(f'Frequency ({fUnit})')
-            ax.set_ylabel('Noise Power Spectral Density (dBm)')
+            ax.set_ylabel('Noise Power (dBm)')
             plt.show()
         return data, freqs
 
