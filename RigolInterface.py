@@ -789,6 +789,25 @@ class ArbitraryFG(_GenericDevice):
         self.resource.write(f':OUTP{output}:IMP ' + load) 
         print(f'Impedance OUTP{output} set to :', self.resource.query(f':OUTP{output}:IMP?'))
 
+    def get_impedance(self, output: int = 1):  
+        """Queries the output impedance of the specified channel(s).
+        If no channel is specified, returns output impedance for Channel 1
+
+        Args:
+            output (int or list of int, optional): Channel. Defaults to 1.
+            
+        Returns:
+            float or list of float: impedances
+        """
+        if type(output) is list:
+            output_impedance=[]
+            for ch in output:
+                ch_impedance = float(self.resource.query(f':OUTP{ch}:IMP?'))
+                output_impedance.append(ch_impedance)
+        elif type(output) is int:
+            output_impedance = float(self.resource.query(f':OUTP{output}:IMP?'))
+        return output_impedance
+
     def dc_offset(self, output: int = 1, offset: float = 2.0):
         """
         Applies a constant voltage on the specified output
