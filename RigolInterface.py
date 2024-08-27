@@ -955,7 +955,7 @@ class ArbitraryFG(_GenericDevice):
 
     def align_phase(self, output: int = 1):
         """Reconfigures output of specified channel to align phase with other output channel.
-        The phases specified for the channels may still differ - this function aligns their absolute phase reference.
+        The phases specified for the channels may still differ - this function aligns their phase references.
 
         Args:
             output (int, optional): Output channel. Defaults to 1.
