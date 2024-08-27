@@ -952,3 +952,12 @@ class ArbitraryFG(_GenericDevice):
         self.resource.write(f":SOURce{output}:APPLy:USER {freq}, {ampl}, " +
                             f"{offset}, {phase}")
         self.turn_on(output)
+
+    def align_phase(self, output: int = 1):
+        """Reconfigures output of specified channel to align phase with other output channel.
+        The phases specified for the channels may still differ - this function aligns their absolute phase reference.
+
+        Args:
+            output (int, optional): Output channel. Defaults to 1.
+        """
+        self.resource.write(f":SOURce{output}:PHAS:SYNC")
