@@ -88,7 +88,8 @@ class _Preamble:
 class Scope(_GenericDevice):
 
     def get_waveform_raw(self, channels: list = [1], memdepth: str | int = None,
-                          single = False, plot: bool = False, ndivs: int = None) -> np.ndarray:
+                          single = False, plot: bool = False, ndivs: int = None, 
+                          barrier = None) -> np.ndarray:
         """
         Gets the entire waveform data in the internal memory for a selection of channels
         (!) To retrieve long timescale waveforms, enable single trigger mode
@@ -101,6 +102,8 @@ class Scope(_GenericDevice):
         :param int ndivs: The number of time divisions on the screen.
                 Defaults to None. If possible (depends on scope model),
                 ndivs is set by query to oscilloscope.
+        :param <multiprocessing.Barrier> barrier (optional): Useful for
+                synchronizing multiple processes (measurements)
         :returns: Data, Time np.ndarrays containing the traces of shape
             (channels, nbr of points) if len(channels)>1
         """
@@ -166,12 +169,18 @@ class Scope(_GenericDevice):
 
         # Measure waveform, afterwards scope must be in STOP state to read from internal memory
         if single:
-            self.resource.write(":SINGle")
+            if barrier is not None:
+                barrier.wait()
+                self.resource.write(":SINGle")
+                print(f'{self.short_name} | Waiting for trigger as of {time()} s')
+            else:
+                self.resource.write(":SINGle")
             if trig_status.replace('\n','') == "STOP":
                 # Wait for trig status to change from "STOP" before while loop
                 sleep(1)
             while self.resource.query(':TRIGger:STATus?').replace('\n','') != 'STOP':
                 sleep(0.1)
+            print(f"{self.short_name} | Waveform complete as of {time()} s")
         else:
             self.resource.write(":STOP")
             
