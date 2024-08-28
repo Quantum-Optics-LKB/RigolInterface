@@ -509,6 +509,15 @@ class Scope(_GenericDevice):
             with open(filename, 'wb') as fs:
                 fs.write(raw_img)
         return img
+    
+    def get_sampling_rate(self):
+        """Query the current sample rate. The default unit is Sa/s.
+
+        Returns:
+            float: sampling rate
+        """        
+        srate = float(self.resource.query(":ACQuire:SRATe?"))
+        return srate
 
     def close(self):
         self.resource.write(":RUN")
