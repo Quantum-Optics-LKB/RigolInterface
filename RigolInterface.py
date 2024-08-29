@@ -254,7 +254,7 @@ class Scope(_GenericDevice):
         if len(channels) == 1:
             Data = Data[0, :]
             Time = Time[0, :]
-        return Data, Time
+        return Time, Data
 
     def get_waveform(self, channels: list = [1], memdepth: str | int = None,
                      single = False, plot: bool = False,
