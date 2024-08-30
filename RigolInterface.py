@@ -769,11 +769,16 @@ class ArbitraryFG(_GenericDevice):
         ison = self.resource.query(f"OUTPut{output}?")[:-1] == "ON"
         ret = self.resource.query(f"SOURce{output}:APPLy?")
         ret = ret[1:-2].split(",")
+        for i in range(len(ret)):
+            try:
+                ret[i] = float(ret[i])
+            except ValueError: # When generating noise, phase and freq are undefined
+                pass
         type = ret[0]
-        freq = float(ret[1])
-        amp = float(ret[2])
-        offset = float(ret[3])
-        phase = float(ret[4])
+        freq = ret[1]
+        amp = ret[2]
+        offset = ret[3]
+        phase = ret[4]
         return [ison, type, freq, amp, offset, phase]
 
     def turn_on(self, output: int = 1):
