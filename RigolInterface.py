@@ -139,7 +139,7 @@ class Scope(_GenericDevice):
         if memdepth is not None:
             prev_memdepth = self.resource.query(":ACQuire:MDEPth?").replace('\n','')
             if prev_memdepth != 'AUTO':
-                prev_memdepth = int(prev_memdepth)
+                prev_memdepth = int(float(prev_memdepth))
             if prev_memdepth != memdepth:
                 if trig_status == "STOP\n":
                     # Memory depth cannot be set while oscilloscope is in STOP state
@@ -165,7 +165,7 @@ class Scope(_GenericDevice):
             waveform_length = time_scale * ndivs
             memory_depth = int(round(sample_rate*waveform_length))
         else:
-            memory_depth = int(memory_depth)
+            memory_depth = int(float(memory_depth))
 
         # Measure waveform, afterwards scope must be in STOP state to read from internal memory
         if single:
@@ -317,7 +317,7 @@ class Scope(_GenericDevice):
         if memdepth is not None:
             prev_memdepth = self.resource.query(":ACQuire:MDEPth?").replace('\n','')
             if prev_memdepth != 'AUTO':
-                prev_memdepth = int(prev_memdepth)
+                prev_memdepth = int(float(prev_memdepth))
             if prev_memdepth != memdepth:
                 if trig_status == "STOP\n":
                     # Memory depth cannot be set while oscilloscope is in STOP state
@@ -347,7 +347,7 @@ class Scope(_GenericDevice):
             waveform_length = time_scale * ndivs
             memory_depth = int(round(sample_rate*waveform_length))
         else:
-            memory_depth = int(memory_depth)
+            memory_depth = int(float(memory_depth))
 
         # Exit before measurement if data transfer from scope will be unsuccessful
         x_inc = 1/sample_rate
