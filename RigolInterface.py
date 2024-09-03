@@ -755,10 +755,12 @@ class SpectrumAnalyzer(_GenericDevice):
 
 class ArbitraryFG(_GenericDevice):
 
-    def get_waveform(self, output: int = 1) -> list:
+    def get_waveform(self, output: int = 1, amp_unit: int = False) -> list:
         """
         Gets the waveform type as well as its specs
         :param int output: Description of parameter `output`.
+        :param int amp_unit: If true, amp is returned as tuple with its unit, eg. Vrms
+            Otherwise, BY DEFAULT amplitude returned as Vpp
         :return: List containing all the parameters
         :rtype: list
 
@@ -767,6 +769,11 @@ class ArbitraryFG(_GenericDevice):
             print("ERROR : Invalid output specified")
             return None
         ison = self.resource.query(f"OUTPut{output}?")[:-1] == "ON"
+        if amp_unit == False:
+            # Before querying waveform parameters, need to change amplitude unit
+            # to Vpp. Otherwise, value is returned for whatever unit user specified
+            curr_amp_unit =  self.resource.query(f"SOURce{output}:VOLT:UNIT?").replace('\n','')
+            self.resource.write(f"SOURce{output}:VOLT:UNIT VPP")
         ret = self.resource.query(f"SOURce{output}:APPLy?")
         ret = ret[1:-2].split(",")
         for i in range(len(ret)):
@@ -779,6 +786,12 @@ class ArbitraryFG(_GenericDevice):
         amp = ret[2]
         offset = ret[3]
         phase = ret[4]
+        if amp_unit == True:
+            unit = self.resource.query(f"SOURce{output}:VOLT:UNIT?").replace('\n','')
+            amp = (amp, unit)
+        else:
+            # Change amplitude unit back to whatever user had set
+            self.resource.write(f"SOURce{output}:VOLT:UNIT {curr_amp_unit}")
         return [ison, type, freq, amp, offset, phase]
 
     def turn_on(self, output: int = 1):
